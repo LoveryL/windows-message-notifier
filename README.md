@@ -18,9 +18,8 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**, designed
 ---
 
 ## 部分截图 | Some screenshots
-
-
-
+<img width="306" height="298" alt="QQ20260721-141755" src="https://github.com/user-attachments/assets/e0fa82b3-46a0-4a32-8161-189f7424db8f" />
+<img width="678" height="168" alt="QQ20260721-141646" src="https://github.com/user-attachments/assets/ec782889-d8f8-4296-8b90-a03e4025276f" />
 
 
 ---
