@@ -1,0 +1,134 @@
+﻿<Window x:Class="Notifier.MainWindow"
+xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+Title="Rectangle Window"
+Height="Auto" Width="Auto"
+MinHeight="40" MinWidth="160"
+MaxWidth="360"
+WindowStyle="None"
+AllowsTransparency="True"
+Background="Transparent"
+ResizeMode="NoResize"
+Topmost="True"
+WindowStartupLocation="Manual"
+SizeToContent="WidthAndHeight"
+ShowInTaskbar="False"
+Visibility="Hidden">
+
+<Window.Resources>
+<Storyboard x:Key="SlideInAnimation">
+<DoubleAnimation 
+Storyboard.TargetName="RootGrid" 
+Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
+From="80" To="0" Duration="0:0:0.25">
+<DoubleAnimation.EasingFunction>
+<CubicEase EasingMode="EaseOut"/>
+</DoubleAnimation.EasingFunction>
+</DoubleAnimation>
+<DoubleAnimation 
+Storyboard.TargetName="RootGrid" 
+Storyboard.TargetProperty="Opacity" 
+From="0" To="1" Duration="0:0:0.25"/>
+</Storyboard>
+
+<Storyboard x:Key="SlideOutAnimation">
+<DoubleAnimation 
+Storyboard.TargetName="RootGrid" 
+Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
+From="0" To="80" Duration="0:0:0.35">
+<DoubleAnimation.EasingFunction>
+<CubicEase EasingMode="EaseIn"/>
+</DoubleAnimation.EasingFunction>
+</DoubleAnimation>
+<DoubleAnimation 
+Storyboard.TargetName="RootGrid" 
+Storyboard.TargetProperty="Opacity" 
+From="1" To="0" Duration="0:0:0.30"/>
+</Storyboard>
+</Window.Resources>
+
+<Grid x:Name="RootGrid" Opacity="0">
+<Grid.RenderTransform>
+<TranslateTransform X="60"/>
+</Grid.RenderTransform>
+
+<Border CornerRadius="12"
+Background="#E8F2F2F2"
+BorderBrush="#25000000"
+BorderThickness="0.5"
+Padding="0"
+Margin="0">
+<Grid Margin="16,10,16,12">
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<RowDefinition Height="Auto"/>
+</Grid.RowDefinitions>
+
+<Grid Grid.Row="0" Margin="0,0,0,6">
+<Grid.ColumnDefinitions>
+<ColumnDefinition Width="Auto"/>
+<ColumnDefinition Width="*"/>
+<ColumnDefinition Width="Auto"/>
+</Grid.ColumnDefinitions>
+<TextBlock Grid.Column="0"
+Text="🔔"
+FontSize="13"
+VerticalAlignment="Center"
+Margin="0,0,6,0"/>
+<TextBlock Grid.Column="1"
+Text="通知"
+Foreground="#88000000"
+FontSize="11"
+FontWeight="SemiBold"
+VerticalAlignment="Center"/>
+<TextBlock Grid.Column="2"
+x:Name="TimeStampText"
+Foreground="#55000000"
+FontSize="10"
+VerticalAlignment="Center"/>
+</Grid>
+
+<ScrollViewer Grid.Row="1"
+MaxHeight="350"
+VerticalScrollBarVisibility="Auto"
+HorizontalScrollBarVisibility="Disabled">
+<ItemsControl x:Name="MessageList"
+IsHitTestVisible="False">
+<ItemsControl.ItemTemplate>
+<DataTemplate>
+<Border CornerRadius="8"
+Background="#18000000"
+Padding="10,7"
+Margin="0,3">
+<StackPanel>
+<TextBlock Text="{Binding Title}"
+Foreground="#DD000000"
+FontSize="12"
+FontWeight="SemiBold"
+TextWrapping="Wrap"
+Margin="0,0,0,5"
+HorizontalAlignment="Left"/>
+
+<ItemsControl ItemsSource="{Binding Bodies}"
+IsHitTestVisible="False">
+<ItemsControl.ItemTemplate>
+<DataTemplate>
+<TextBlock Text="{Binding}"
+Foreground="#AA000000"
+FontSize="11"
+TextWrapping="Wrap"
+Margin="14,2,0,2"
+HorizontalAlignment="Left"/>
+</DataTemplate>
+</ItemsControl.ItemTemplate>
+</ItemsControl>
+</StackPanel>
+</Border>
+</DataTemplate>
+</ItemsControl.ItemTemplate>
+</ItemsControl>
+</ScrollViewer>
+</Grid>
+</Border>
+</Grid>
+</Window>
