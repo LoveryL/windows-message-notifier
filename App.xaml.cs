@@ -4,6 +4,7 @@ using WpfApp = System.Windows.Application;
 using System;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Win32;
 
 namespace Notifier
 {
@@ -13,6 +14,14 @@ namespace Notifier
         private DispatcherTimer? _pollingTimer;
         private Forms.NotifyIcon? _notifyIcon;
         private MainWindow? _currentToastWindow;
+        private MessageSummaryWindow? _summaryWindow;
+
+        private bool _hasUnreadMessages;
+
+        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string AppName = "Notifier";
+
+        public static event Action<ToastData>? OnNewToastDetected;
 
         private void OnStartup(object sender, StartupEventArgs e)
         {
@@ -32,49 +41,139 @@ namespace Notifier
         private async System.Threading.Tasks.Task InitializeListenerAsync()
         {
             var (success, message) = await _listener!.InitializeAsync();
-            
+
             System.Diagnostics.Debug.WriteLine($"初始化结果: {success} - {message}");
-            
+
             if (!success)
             {
-                MessageBox.Show(message, "通知监听初始化失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddMessage($"❌ 通知监听初始化失败: {message}");
                 return;
             }
 
+            ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
-
-            Dispatcher.Invoke(() =>
-            {
-                AddMessage("✅ 通知监听已启动");
-            });
+            AddMessage("✅ 通知监听已启动");
         }
 
         private void InitializeNotifyIcon()
         {
             _notifyIcon = new Forms.NotifyIcon();
-            _notifyIcon.Icon = System.Drawing.SystemIcons.Application;
+            SetNormalIcon();
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "通知";
+            _notifyIcon.Text = "通知助手";
 
             var contextMenu = new Forms.ContextMenuStrip();
-            
-            var exitMenuItem = new Forms.ToolStripMenuItem("退出");
-            exitMenuItem.Click += (s, e) => Shutdown();
-            contextMenu.Items.Add(exitMenuItem);
-            
+
+            var autoStartItem = new Forms.ToolStripMenuItem("开机自启");
+            autoStartItem.Checked = IsAutoStartEnabled();
+            autoStartItem.Click += (s, e) =>
+            {
+                ToggleAutoStart();
+                autoStartItem.Checked = IsAutoStartEnabled();
+            };
+            contextMenu.Items.Add(autoStartItem);
+
+            contextMenu.Items.Add(new Forms.ToolStripSeparator());
+
+            var exitItem = new Forms.ToolStripMenuItem("退出");
+            exitItem.Click += (s, e) => Shutdown();
+            contextMenu.Items.Add(exitItem);
+
             _notifyIcon.ContextMenuStrip = contextMenu;
+            _notifyIcon.MouseClick += NotifyIcon_MouseClick;
+        }
+
+        private bool IsAutoStartEnabled()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+                var value = key?.GetValue(AppName);
+                return value != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void ToggleAutoStart()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.CreateSubKey(RunKey);
+                if (IsAutoStartEnabled())
+                {
+                    key.DeleteValue(AppName, false);
+                    AddMessage("🔘 已关闭开机自启");
+                }
+                else
+                {
+                    var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    key.SetValue(AppName, exePath);
+                    AddMessage("🔘 已开启开机自启");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddMessage($"❌ 设置开机自启失败: {ex.Message}");
+            }
+        }
+
+        private void SetNormalIcon()
+        {
+            try
+            {
+                _notifyIcon!.Icon = new System.Drawing.Icon(
+                    System.Reflection.Assembly.GetExecutingAssembly()
+                        .GetManifestResourceStream("Notifier.Resources.icon_normal.ico")!);
+            }
+            catch
+            {
+                _notifyIcon!.Icon = System.Drawing.SystemIcons.Application;
+            }
+        }
+
+        private void SetAlertIcon()
+        {
+            try
+            {
+                _notifyIcon!.Icon = new System.Drawing.Icon(
+                    System.Reflection.Assembly.GetExecutingAssembly()
+                        .GetManifestResourceStream("Notifier.Resources.icon_alert.ico")!);
+            }
+            catch
+            {
+                _notifyIcon!.Icon = System.Drawing.SystemIcons.Application;
+            }
+        }
+
+        private void NotifyIcon_MouseClick(object? sender, Forms.MouseEventArgs e)
+        {
+            if (e.Button == Forms.MouseButtons.Left)
+            {
+                if (_summaryWindow != null && _summaryWindow.IsVisible)
+                {
+                    _summaryWindow.Activate();
+                    _summaryWindow.Focus();
+                    return;
+                }
+
+                var messages = ToastMessageStore.GetAll();
+                _summaryWindow = new MessageSummaryWindow(messages);
+                _summaryWindow.Closed += (s, args) =>
+                {
+                    _summaryWindow = null;
+                };
+                _summaryWindow.Show();
+            }
         }
 
         private async void PollingTimer_Tick(object? sender, EventArgs e)
         {
             if (_listener != null)
             {
-                var (data, message) = await _listener.FetchLatestNotificationAsync();
-                
-                if (data != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"检测到新通知: {data.Title}");
-                }
+                await _listener.FetchLatestNotificationAsync();
             }
         }
 
@@ -84,6 +183,18 @@ namespace Notifier
             {
                 Dispatcher.Invoke(() => OnToastDetected(toastData));
                 return;
+            }
+
+            ToastMessageStore.Add(toastData);
+            _hasUnreadMessages = true;
+
+            if (_hasUnreadMessages) SetAlertIcon(); else SetNormalIcon();
+
+            OnNewToastDetected?.Invoke(toastData);
+
+            if (_summaryWindow != null && _summaryWindow.IsVisible)
+            {
+                _summaryWindow.RefreshMessages();
             }
 
             string displayText;
@@ -100,9 +211,13 @@ namespace Notifier
                 displayText = toastData.Body ?? "新通知";
             }
 
-            System.Diagnostics.Debug.WriteLine($"显示通知窗口: {displayText}");
-
             AddMessage(displayText);
+        }
+
+        public void OnMessagesHaveBeenCleared()
+        {
+            _hasUnreadMessages = ToastMessageStore.UnreadCount > 0;
+            if (_hasUnreadMessages) SetAlertIcon(); else SetNormalIcon();
         }
 
         private void AddMessage(string text)
@@ -112,7 +227,7 @@ namespace Notifier
                 _currentToastWindow = new MainWindow();
                 _currentToastWindow.Closed += (s, e) => _currentToastWindow = null;
             }
-            
+
             _currentToastWindow.AddMessage(text);
         }
 

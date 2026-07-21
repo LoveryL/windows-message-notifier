@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 
 namespace Notifier
 {
@@ -78,6 +79,8 @@ namespace Notifier
                     
                     if (toastData != null)
                     {
+                        toastData.NotificationId = latestNotif.Id;
+                        toastData.InternalNotification = latestNotif;
                         OnToastDetected?.Invoke(toastData);
                         return (toastData, null);
                     }
@@ -131,12 +134,55 @@ namespace Notifier
                     AppName = appName,
                     Title = title,
                     Body = body,
-                    Aumid = aumid
+                    Aumid = aumid,
+                    InternalNotification = notification,
+                    NotificationId = notification.Id
                 };
             }
             catch
             {
                 return null;
+            }
+        }
+
+        public async Task ClearAllNotificationsAsync()
+        {
+            try
+            {
+                if (_listener != null)
+                {
+                    var notifications = await _listener.GetNotificationsAsync(NotificationKinds.Toast);
+                    if (notifications != null)
+                    {
+                        foreach (var notif in notifications)
+                        {
+                            try
+                            {
+                                _listener.RemoveNotification(notif.Id);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ClearNotifications error: {ex.Message}");
+            }
+        }
+
+        public void RemoveNotificationById(uint notificationId)
+        {
+            if (_listener != null)
+            {
+                try
+                {
+                    _listener.RemoveNotification(notificationId);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"删除通知失败: {ex.Message}");
+                }
             }
         }
     }
@@ -147,7 +193,10 @@ namespace Notifier
         public string Title { get; set; } = "";
         public string Body { get; set; } = "";
         public string Aumid { get; set; } = "";
+        public uint NotificationId { get; set; }
+        public UserNotification? InternalNotification { get; set; }
     }
+    
     public class ToastMessage
     {
         public string Title { get; set; } = "";

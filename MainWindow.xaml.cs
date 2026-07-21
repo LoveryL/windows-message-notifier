@@ -27,20 +27,13 @@ namespace Notifier
         {
             InitializeComponent();
             Loaded += (s, e) => PositionWindow();
-            SourceInitialized += OnSourceInitialized;
+            SourceInitialized += (s, e) =>
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
+            };
             MessageList.ItemsSource = _messageGroups;
-        }
-
-        private void OnSourceInitialized(object? sender, EventArgs e)
-        {
-            EnableMousePassthrough();
-        }
-
-        private void EnableMousePassthrough()
-        {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
         }
 
         public void AddMessage(string text)
@@ -134,7 +127,7 @@ namespace Notifier
 
             _hideTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(3)
+                Interval = TimeSpan.FromSeconds(5)
             };
 
             _hideTimer.Tick += (s, e) =>
