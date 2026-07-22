@@ -36,31 +36,29 @@ jobs:
       run: |
         Compress-Archive -Path "${{ github.workspace }}\build-output\*" -DestinationPath "${{ github.workspace }}\release.zip" -Force
 
-    - name: Delete existing pre release
+    - name: Delete existing pre release and tag
       run: |
-        gh release delete pre --yes || true
+        gh release delete pre --yes 2>$null; exit 0
+        git tag -d pre 2>$null; exit 0
+        git push origin :refs/tags/pre 2>$null; exit 0
+      shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Delete existing pre tag
-      run: |
-        git tag -d pre || true
-        git push origin :refs/tags/pre || true
 
     - name: Create pre tag
       run: |
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        git tag pre
-        git push origin pre
+        git tag -f pre
+        git push origin pre --force
 
-    - name: Create GitHub Release (pre)
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: pre
-        name: auto-publish
-        body: "GitHub Action 自动推送"
-        prerelease: true
-        files: ${{ github.workspace }}/release.zip
+    - name: Create Release and upload artifact using gh CLI
+      run: |
+        gh release create pre `
+          --title "auto-publish" `
+          --notes "GitHub Action 自动推送" `
+          --prerelease `
+          "${{ github.workspace }}\release.zip"
+      shell: pwsh
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
