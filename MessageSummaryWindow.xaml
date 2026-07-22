@@ -107,7 +107,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <!-- 底部状态栏->
+                <!-- 底部状态栏-->
                 <Border Grid.Row="2"
                         Background="#E8E8E8"
                         CornerRadius="0,0,14,14"
