@@ -46,13 +46,13 @@ namespace Notifier
 
             if (!success)
             {
-                AddMessage($"❌ 通知监听初始化失败: {message}");
+                AddMessage($"警告:❌ 通知监听初始化失败: {message}");
                 return;
             }
 
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
-            AddMessage("✅ 通知监听已启动");
+            AddMessage("新通知:✅ 通知监听已启动");
         }
 
         private void InitializeNotifyIcon()
@@ -60,7 +60,7 @@ namespace Notifier
             _notifyIcon = new Forms.NotifyIcon();
             SetNormalIcon();
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "通知助手";
+            _notifyIcon.Text = "通知";
 
             var contextMenu = new Forms.ContextMenuStrip();
 
@@ -105,18 +105,18 @@ namespace Notifier
                 if (IsAutoStartEnabled())
                 {
                     key.DeleteValue(AppName, false);
-                    AddMessage("🔘 已关闭开机自启");
+                    AddMessage("新通知:🔘 已关闭开机自启");
                 }
                 else
                 {
                     var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
                     key.SetValue(AppName, exePath);
-                    AddMessage("🔘 已开启开机自启");
+                    AddMessage("新通知:🔘 已开启开机自启");
                 }
             }
             catch (Exception ex)
             {
-                AddMessage($"❌ 设置开机自启失败: {ex.Message}");
+                AddMessage($"警告:❌ 设置开机自启失败: {ex.Message}");
             }
         }
 

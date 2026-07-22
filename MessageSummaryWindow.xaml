@@ -19,19 +19,15 @@
           MouseMove="RootGrid_MouseMove"
           MouseLeftButtonUp="RootGrid_MouseLeftButtonUp">
         <!-- 阴影层 -->
-        <Border Margin="15"
+        <Border
                 Background="Transparent"
                 CornerRadius="14">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="35"
-                                  Color="#AA000000"
-                                  Direction="270"
-                                  ShadowDepth="8"
-                                  Opacity="1.0"/>
+                <BlurEffect KernelType="Gaussian" Radius="30" RenderingBias="Quality"/>
             </Border.Effect>
         </Border>
         <!-- 实际窗口主体 -->
-        <Border Background="#F5F5F5"
+        <Border Background="#D7F5F5F5"
                 BorderBrush="#D0D0D0"
                 BorderThickness="1"
                 CornerRadius="14">
@@ -135,12 +131,11 @@
                             <Button x:Name="ClearButton"
                                     Content="清除消息"
                                     Click="ClearButton_Click"
-                                    Background="Transparent"
                                     Foreground="White"
                                     BorderThickness="0"
                                     FontSize="11"
                                     Padding="8,4"
-                                    Cursor="Hand"/>
+                                    Cursor="Hand" Opacity="0.995" Background="#00000000" FontFamily="Microsoft YaHei"/>
                         </Border>
                     </Grid>
                 </Border>
