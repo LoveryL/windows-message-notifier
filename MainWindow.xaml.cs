@@ -11,11 +11,16 @@ namespace Notifier
 {
     public partial class MainWindow : Window
     {
-        private DispatcherTimer? _hideTimer;
-        private ObservableCollection<ToastMessageGroup> _messageGroups = new ObservableCollection<ToastMessageGroup>();
-
-        private const int WS_EX_TRANSPARENT = 0x00000020;
+        #region Win32 无焦点置顶 & 鼠标穿透
         private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+
+        private const int SW_SHOWNOACTIVATE = 4;
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOACTIVATE = 0x0010;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOMOVE = 0x0002;
 
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -23,58 +28,69 @@ namespace Notifier
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+            int X, int Y, int cx, int cy, uint uFlags);
+        #endregion
+
+
+        private DispatcherTimer? _hideTimer;
+        private ObservableCollection<ToastMessageGroup> _messageGroups = new();
+
+
         public MainWindow()
         {
             InitializeComponent();
-            Loaded += (s, e) => PositionWindow();
-            SourceInitialized += (s, e) =>
-            {
-                IntPtr hwnd = new WindowInteropHelper(this).Handle;
-                int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-                SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT);
-            };
             MessageList.ItemsSource = _messageGroups;
+
+            Loaded += (_, __) => PositionWindow();
+
+            SourceInitialized += (_, __) =>
+            {
+                // 永久鼠标穿透：不接收任何鼠标事件
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+                SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT);
+            };
         }
 
+
+        #region 公开接口：添加通知
         public void AddMessage(string text)
         {
             var (title, body) = ParseMessage(text);
 
-            var existingGroup = _messageGroups.FirstOrDefault(g => g.Title == title);
-
-            if (existingGroup != null)
+            var existing = _messageGroups.FirstOrDefault(g => g.Title == title);
+            if (existing != null)
             {
-                if (!string.IsNullOrEmpty(body))
-                {
-                    existingGroup.Bodies.Add(body);
-                }
+                if (!string.IsNullOrWhiteSpace(body))
+                    existing.Bodies.Add(body);
             }
             else
             {
-                var newGroup = new ToastMessageGroup
+                var group = new ToastMessageGroup
                 {
-                    Title = string.IsNullOrEmpty(title) ? "新通知" : title
+                    Title = string.IsNullOrWhiteSpace(title) ? "新通知" : title
                 };
-                if (!string.IsNullOrEmpty(body))
-                {
-                    newGroup.Bodies.Add(body);
-                }
-                _messageGroups.Add(newGroup);
+                if (!string.IsNullOrWhiteSpace(body))
+                    group.Bodies.Add(body);
+                _messageGroups.Add(group);
             }
 
-            if (this.Visibility == Visibility.Visible)
+            if (Visibility == Visibility.Visible)
             {
                 PositionWindow();
                 PlaySlideInAnimation();
             }
             else
             {
-                this.Visibility = Visibility.Visible;
-                this.Show();
-                this.Activate();
-                this.Topmost = true;
+                Visibility = Visibility.Visible;
+                ShowNoActivateTopmost();   // ⬅️ 核心：只显示，不拿焦点
 
-                this.Dispatcher.InvokeAsync(() =>
+                Dispatcher.InvokeAsync(() =>
                 {
                     PositionWindow();
                     PlaySlideInAnimation();
@@ -83,44 +99,64 @@ namespace Notifier
 
             StartHideTimer();
         }
+        #endregion
 
-        private (string Title, string Body) ParseMessage(string text)
+
+        #region 无焦点显示 / 隐藏
+        /// <summary>
+        /// 置顶显示，但明确告诉系统：不要给我焦点
+        /// </summary>
+        private void ShowNoActivateTopmost()
         {
-            if (string.IsNullOrEmpty(text))
-                return ("", "");
-
-            int colonIndex = text.IndexOf(':');
-            if (colonIndex > 0 && colonIndex < text.Length - 1)
-            {
-                return (
-                    text.Substring(0, colonIndex).Trim(),
-                    text.Substring(colonIndex + 1).Trim()
-                );
-            }
-
-            return ("", text.Trim());
+            var hwnd = new WindowInteropHelper(this).EnsureHandle();
+            ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
 
+        private void RevokeTopmost()
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        }
+        #endregion
+
+
+        #region 动画
         private void PlaySlideInAnimation()
         {
-            var storyboard = Resources["SlideInAnimation"] as Storyboard;
-            if (storyboard != null)
-                storyboard.Begin();
+            if (Resources["SlideInAnimation"] is Storyboard sb)
+                sb.Begin();
         }
 
         private void PlaySlideOutAnimationAndHide()
         {
-            var storyboard = Resources["SlideOutAnimation"] as Storyboard;
-            if (storyboard != null)
+            if (Resources["SlideOutAnimation"] is Storyboard sb)
             {
-                storyboard.Completed += (s, e) =>
-                {
-                    this.Visibility = Visibility.Collapsed;
-                };
-                storyboard.Begin();
+                sb.Completed -= OnSlideOutCompleted; // 防重复挂
+                sb.Completed += OnSlideOutCompleted;
+                sb.Begin();
+            }
+            else
+            {
+                Visibility = Visibility.Collapsed;
+                RevokeTopmost();
             }
         }
 
+        private void OnSlideOutCompleted(object? sender, EventArgs e)
+        {
+            Visibility = Visibility.Collapsed;
+            RevokeTopmost();
+        }
+        #endregion
+
+
+        #region 自动隐藏计时器
         private void StartHideTimer()
         {
             _hideTimer?.Stop();
@@ -130,40 +166,56 @@ namespace Notifier
                 Interval = TimeSpan.FromSeconds(5)
             };
 
-            _hideTimer.Tick += (s, e) =>
+            _hideTimer.Tick += (_, __) =>
             {
-                PlaySlideOutAnimationAndHide();
                 _hideTimer.Stop();
+                PlaySlideOutAnimationAndHide();
             };
 
             _hideTimer.Start();
         }
+        #endregion
 
+
+        #region 布局定位
         private void PositionWindow()
         {
-            var workArea = SystemParameters.WorkArea;
+            UpdateLayout();
+            Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Arrange(new Rect(new Point(0, 0), DesiredSize));
 
-            this.UpdateLayout();
-            this.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            this.Arrange(new Rect(new Point(0, 0), this.DesiredSize));
+            double w = ActualWidth > 0 ? ActualWidth : 280;
+            double h = ActualHeight > 0 ? ActualHeight : 130;
+            var area = SystemParameters.WorkArea;
 
-            double windowWidth = this.ActualWidth > 0 ? this.ActualWidth : 280;
-            double windowHeight = this.ActualHeight > 0 ? this.ActualHeight : 130;
+            double top = area.Top + (area.Height - h) * 0.03;
+            double left = area.Right - w - 18;
 
-            double top = workArea.Top + (workArea.Height - windowHeight) * 0.03;
-            double left = workArea.Right - windowWidth - 18;
-
-            top = Math.Max(top, workArea.Top + 5);
-            left = Math.Max(left, workArea.Left + 5);
-
-            this.Top = top;
-            this.Left = left;
+            Top = Math.Max(top, area.Top + 5);
+            Left = Math.Max(left, area.Left + 5);
         }
+        #endregion
+
+
+        #region 文本解析
+        private static (string Title, string Body) ParseMessage(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return ("", "");
+
+            int idx = text.IndexOf(':');
+            if (idx > 0 && idx < text.Length - 1)
+                return (text[..idx].Trim(), text[(idx + 1)..].Trim());
+
+            return ("", text.Trim());
+        }
+        #endregion
     }
+
 
     public class ToastMessageGroup
     {
         public string Title { get; set; } = "";
-        public ObservableCollection<string> Bodies { get; set; } = new ObservableCollection<string>();
+        public ObservableCollection<string> Bodies { get; set; } = new();
     }
 }
