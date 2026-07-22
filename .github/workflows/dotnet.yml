@@ -1,28 +1,62 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
-
 name: .NET
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-  build:
+  build-and-release:
 
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-tags: true   # 关键：拉取远程 tag
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
+
     - name: Restore dependencies
       run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
+
+    - name: Build (Release)
+      run: dotnet build --configuration Release --no-restore
+
     - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
+    - name: Pack
+      run: dotnet pack --configuration Release --output ./nupkg
+
+    - name: Delete existing pre release
+      run: |
+        gh release delete pre --yes || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete existing pre tag
+      run: |
+        git tag -d pre || true
+        git push origin :refs/tags/pre || true
+
+    - name: Create pre tag
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git tag pre
+        git push origin pre
+
+    - name: Create GitHub Release (pre)
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: pre
+        name: pre
+        body: "GitHub Action 自动推送"
+        prerelease: true
+        files: ./nupkg/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
