@@ -9,11 +9,14 @@ jobs:
   build-and-release:
 
     runs-on: windows-latest
+    
+    permissions:
+      contents: write  
 
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-tags: true   # 关键：拉取远程 tag
+        fetch-tags: true 
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
