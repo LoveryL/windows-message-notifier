@@ -34,7 +34,7 @@ jobs:
 
     - name: Package build artifacts
       run: |
-        Compress-Archive -Path ./bin/Release/net10.0/* -DestinationPath ./release.zip
+        Compress-Archive -Path "${{ github.workspace }}\bin\Release\net10.0-windows10.0.22621.0\*" -DestinationPath "${{ github.workspace }}\release.zip" -Force
 
     - name: Delete existing pre release
       run: |
@@ -58,9 +58,9 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: pre
-        name: auto-build-version
+        name: pre
         body: "GitHub Action 自动推送"
         prerelease: true
-        files: ./release.zip
+        files: ${{ github.workspace }}\release.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
