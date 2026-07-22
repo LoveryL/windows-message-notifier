@@ -36,27 +36,27 @@ jobs:
       run: |
         Compress-Archive -Path "${{ github.workspace }}\build-output\*" -DestinationPath "${{ github.workspace }}\release.zip" -Force
 
-    - name: Delete existing pre release and tag
+    - name: Generate unique tag name
+      id: tagname
       run: |
-        gh release delete pre --yes 2>$null; exit 0
-        git tag -d pre 2>$null; exit 0
-        git push origin :refs/tags/pre 2>$null; exit 0
+        $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+        $commitShort = git rev-parse --short HEAD
+        echo "TAG_NAME=pre-$commitShort-$timestamp" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       shell: pwsh
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Create pre tag
+    - name: Create pre tag (non-overwriting)
       run: |
         git config user.name "github-actions"
         git config user.email "github-actions@github.com"
-        git tag -f pre
-        git push origin pre --force
+        git tag ${{ steps.tagname.outputs.TAG_NAME }}
+        git push origin ${{ steps.tagname.outputs.TAG_NAME }}
+      shell: pwsh
 
-    - name: Create Release and upload artifact using gh CLI
+    - name: Create Release with unique tag
       run: |
-        gh release create pre `
-          --title "auto-publish" `
-          --notes "GitHub Action 自动推送" `
+        gh release create ${{ steps.tagname.outputs.TAG_NAME }} `
+          --title "auto-publish ${{ steps.tagname.outputs.TAG_NAME }}" `
+          --notes "GitHub Action 自动推送\nCommit: ${{ github.sha }}\nTag: ${{ steps.tagname.outputs.TAG_NAME }}" `
           --prerelease `
           "${{ github.workspace }}\release.zip"
       shell: pwsh
