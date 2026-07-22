@@ -107,7 +107,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <!-- 底部状态栏：显示未读数量 + 清除消息按钮 -->
+                <!-- 底部状态栏->
                 <Border Grid.Row="2"
                         Background="#E8E8E8"
                         CornerRadius="0,0,14,14"
@@ -123,7 +123,7 @@
                                    FontSize="11"
                                    Foreground="#888888"
                                    VerticalAlignment="Center"/>
-                        <!-- 清除消息按钮 - 用 Border 实现圆角 -->
+                        <!-- 清除消息按钮 -->
                         <Border Grid.Column="1"
                                 Background="#D32F2F"
                                 CornerRadius="6"

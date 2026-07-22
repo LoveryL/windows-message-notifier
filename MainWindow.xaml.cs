@@ -50,7 +50,6 @@ namespace Notifier
 
             SourceInitialized += (_, __) =>
             {
-                // 永久鼠标穿透：不接收任何鼠标事件
                 IntPtr hwnd = new WindowInteropHelper(this).Handle;
                 int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
                 SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT);
@@ -88,7 +87,7 @@ namespace Notifier
             else
             {
                 Visibility = Visibility.Visible;
-                ShowNoActivateTopmost();   // ⬅️ 核心：只显示，不拿焦点
+                ShowNoActivateTopmost(); 
 
                 Dispatcher.InvokeAsync(() =>
                 {
@@ -104,7 +103,7 @@ namespace Notifier
 
         #region 无焦点显示 / 隐藏
         /// <summary>
-        /// 置顶显示，但明确告诉系统：不要给我焦点
+        /// 置顶显示
         /// </summary>
         private void ShowNoActivateTopmost()
         {
