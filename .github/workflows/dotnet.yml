@@ -18,6 +18,8 @@ jobs:
       with:
         fetch-tags: true
 
+        node-version: '20'
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
@@ -26,8 +28,9 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    - name: Build (Release)
-      run: dotnet build --configuration Release --no-restore --output "${{ github.workspace }}\build-output"
+
+    - name: Publish (Release)
+      run: dotnet publish --configuration Release --output "${{ github.workspace }}\build-output" --no-restore
 
     - name: Test
       run: dotnet test --configuration Release --no-build --verbosity normal
