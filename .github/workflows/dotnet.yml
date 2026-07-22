@@ -26,29 +26,27 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    # ✅ 关键修改：使用 publish 替代 build，确保生成 .exe 和可运行文件
-    - name: Publish (Release)
-      run: dotnet publish --configuration Release --no-restore
+    - name: Build (Release)
+      run: dotnet build --configuration Release --no-restore --output "${{ github.workspace }}\build-output"
 
-    # ✅ 打包 publish 目录下的所有文件
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
     - name: Package build artifacts
       run: |
-        Compress-Archive -Path "${{ github.workspace }}\bin\Release\net10.0-windows10.0.22621.0\publish\*" -DestinationPath "${{ github.workspace }}\release.zip" -Force
+        Compress-Archive -Path "${{ github.workspace }}\build-output\*" -DestinationPath "${{ github.workspace }}\release.zip" -Force
 
-    # ✅ 删除已有的 pre Release（如果存在）
     - name: Delete existing pre release
       run: |
         gh release delete pre --yes || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # ✅ 删除已有的 pre tag
     - name: Delete existing pre tag
       run: |
         git tag -d pre || true
         git push origin :refs/tags/pre || true
 
-    # ✅ 重新创建 pre tag
     - name: Create pre tag
       run: |
         git config user.name "github-actions"
@@ -56,12 +54,11 @@ jobs:
         git tag pre
         git push origin pre
 
-    # ✅ 创建新的 pre Release，上传构建产物
     - name: Create GitHub Release (pre)
       uses: softprops/action-gh-release@v1
       with:
         tag_name: pre
-        name: pre
+        name: auto-publish
         body: "GitHub Action 自动推送"
         prerelease: true
         files: ${{ github.workspace }}\release.zip
