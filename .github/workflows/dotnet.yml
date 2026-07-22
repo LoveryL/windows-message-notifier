@@ -16,7 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-tags: true 
+        fetch-tags: true
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -32,8 +32,9 @@ jobs:
     - name: Test
       run: dotnet test --configuration Release --no-build --verbosity normal
 
-    - name: Pack
-      run: dotnet pack --configuration Release --output ./nupkg
+    - name: Package build artifacts
+      run: |
+        Compress-Archive -Path ./bin/Release/net10.0/* -DestinationPath ./release.zip
 
     - name: Delete existing pre release
       run: |
@@ -57,9 +58,9 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         tag_name: pre
-        name: pre
+        name: auto-build-version
         body: "GitHub Action 自动推送"
         prerelease: true
-        files: ./nupkg/*
+        files: ./release.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
