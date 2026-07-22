@@ -61,6 +61,6 @@ jobs:
         name: auto-publish
         body: "GitHub Action 自动推送"
         prerelease: true
-        files: ${{ github.workspace }}\release.zip
+        files: ${{ github.workspace }}/release.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
