@@ -57,7 +57,7 @@ namespace Notifier
         }
 
 
-        #region 公开接口：添加通知
+        #region 公开接口
         public void AddMessage(string text)
         {
             var (title, body) = ParseMessage(text);

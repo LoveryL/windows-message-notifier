@@ -2,6 +2,8 @@
 using WpfApp = System.Windows.Application;
 
 using System;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -23,32 +25,41 @@ namespace Notifier
 
         public static event Action<ToastData>? OnNewToastDetected;
 
+        private LowLevelMouseHook? _mouseHook;
+
         private void OnStartup(object sender, StartupEventArgs e)
+{
+    ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+    InitializeNotifyIcon();
+
+
+    _mouseHook = new LowLevelMouseHook();
+    _mouseHook.MouseDown += (_, __) =>
+    {
+        if (_summaryWindow != null && _summaryWindow.IsLoaded && !_summaryWindow.IsActive)
         {
-            ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-            InitializeNotifyIcon();
-
-            _listener = new ToastNotificationListener();
-            _ = InitializeListenerAsync();
-
-            _pollingTimer = new DispatcherTimer();
-            _pollingTimer.Interval = TimeSpan.FromMilliseconds(500);
-            _pollingTimer.Tick += PollingTimer_Tick!;
-            _pollingTimer.Start();
+            Dispatcher.Invoke(() => _summaryWindow.RequestClose());
         }
+    };
+    _mouseHook.Start();
+
+    _ = InitializeListenerAsync();
+
+    _pollingTimer = new DispatcherTimer
+    {
+        Interval = TimeSpan.FromMilliseconds(500)
+    };
+    _pollingTimer.Tick += PollingTimer_Tick!;
+    _pollingTimer.Start();
+}
 
         private async System.Threading.Tasks.Task InitializeListenerAsync()
         {
-            var (success, message) = await _listener!.InitializeAsync();
-
-            System.Diagnostics.Debug.WriteLine($"初始化结果: {success} - {message}");
-
-            if (!success)
-            {
-                AddMessage($"警告:❌ 通知监听初始化失败: {message}");
-                return;
-            }
+            _listener = new ToastNotificationListener();
+            var (ok, msg) = await _listener.InitializeAsync();
+            System.Diagnostics.Debug.WriteLine($"初始化结果: {ok} - {msg}");
+            if (!ok) { AddMessage($"警告:❌ {msg}"); return; }
 
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
@@ -62,62 +73,80 @@ namespace Notifier
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "通知";
 
-            var contextMenu = new Forms.ContextMenuStrip();
+            var menu = new Forms.ContextMenuStrip();
 
-            var autoStartItem = new Forms.ToolStripMenuItem("开机自启");
-            autoStartItem.Checked = IsAutoStartEnabled();
-            autoStartItem.Click += (s, e) =>
-            {
-                ToggleAutoStart();
-                autoStartItem.Checked = IsAutoStartEnabled();
-            };
-            contextMenu.Items.Add(autoStartItem);
+            var auto = new Forms.ToolStripMenuItem("开机自启") { Checked = IsAutoStartEnabled() };
+            auto.Click += (_, __) => { ToggleAutoStart(); auto.Checked = IsAutoStartEnabled(); };
+            menu.Items.Add(auto);
+            menu.Items.Add(new Forms.ToolStripSeparator());
 
-            contextMenu.Items.Add(new Forms.ToolStripSeparator());
+            var exit = new Forms.ToolStripMenuItem("退出");
+            exit.Click += (_, __) => Shutdown();
+            menu.Items.Add(exit);
 
-            var exitItem = new Forms.ToolStripMenuItem("退出");
-            exitItem.Click += (s, e) => Shutdown();
-            contextMenu.Items.Add(exitItem);
-
-            _notifyIcon.ContextMenuStrip = contextMenu;
+            _notifyIcon.ContextMenuStrip = menu;
             _notifyIcon.MouseClick += NotifyIcon_MouseClick;
         }
 
-        private bool IsAutoStartEnabled()
+        private void NotifyIcon_MouseClick(object? sender, Forms.MouseEventArgs e)
         {
-            try
+            if (e.Button != Forms.MouseButtons.Left) return;
+
+            if (_summaryWindow != null && _summaryWindow.IsLoaded)
             {
-                using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-                var value = key?.GetValue(AppName);
-                return value != null;
+                _summaryWindow.RefreshMessages();
+                _summaryWindow.Activate();
+                return;
             }
-            catch
-            {
-                return false;
-            }
+
+            _summaryWindow = new MessageSummaryWindow(ToastMessageStore.GetAll());
+            _summaryWindow.WindowClosed += () => _summaryWindow = null;
+            _summaryWindow.Show();
         }
 
-        private void ToggleAutoStart()
+        private void OnToastDetected(ToastData toast)
         {
-            try
+            if (!Dispatcher.CheckAccess())
             {
-                using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-                if (IsAutoStartEnabled())
-                {
-                    key.DeleteValue(AppName, false);
-                    AddMessage("新通知:🔘 已关闭开机自启");
-                }
-                else
-                {
-                    var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                    key.SetValue(AppName, exePath);
-                    AddMessage("新通知:🔘 已开启开机自启");
-                }
+                Dispatcher.Invoke(() => OnToastDetected(toast));
+                return;
             }
-            catch (Exception ex)
+
+            ToastMessageStore.Add(toast);
+            _hasUnreadMessages = true;
+            SetAlertIcon();
+
+            OnNewToastDetected?.Invoke(toast);
+
+            if (_summaryWindow != null && _summaryWindow.IsVisible)
+                _summaryWindow.RefreshMessages();
+
+            var text = !string.IsNullOrEmpty(toast.Title) && !string.IsNullOrEmpty(toast.Body)
+                ? $"{toast.Title}: {toast.Body}"
+                : toast.Title ?? toast.Body ?? "新通知";
+            AddMessage(text);
+        }
+
+        public void OnMessagesHaveBeenCleared()
+        {
+            _hasUnreadMessages = ToastMessageStore.UnreadCount > 0;
+            if (_hasUnreadMessages) SetAlertIcon(); else SetNormalIcon();
+        }
+
+        private void AddMessage(string text)
+        {
+            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
             {
-                AddMessage($"警告:❌ 设置开机自启失败: {ex.Message}");
+                _currentToastWindow = new MainWindow();
+                _currentToastWindow.Closed += (s, e) => _currentToastWindow = null;
             }
+            _currentToastWindow.AddMessage(text);
+        }
+
+        private async void PollingTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_listener != null)
+                await _listener.FetchLatestNotificationAsync();
         }
 
         private void SetNormalIcon()
@@ -148,93 +177,81 @@ namespace Notifier
             }
         }
 
-        private void NotifyIcon_MouseClick(object? sender, Forms.MouseEventArgs e)
+        private bool IsAutoStartEnabled()
         {
-            if (e.Button == Forms.MouseButtons.Left)
+            try
             {
-                if (_summaryWindow != null && _summaryWindow.IsVisible)
+                using var k = Registry.CurrentUser.OpenSubKey(RunKey);
+                return k?.GetValue(AppName) != null;
+            }
+            catch { return false; }
+        }
+
+        private void ToggleAutoStart()
+        {
+            try
+            {
+                using var k = Registry.CurrentUser.CreateSubKey(RunKey);
+                if (IsAutoStartEnabled())
                 {
-                    _summaryWindow.Activate();
-                    _summaryWindow.Focus();
-                    return;
+                    k.DeleteValue(AppName, false);
+                    AddMessage("新通知:🔘 已关闭开机自启");
                 }
-
-                var messages = ToastMessageStore.GetAll();
-                _summaryWindow = new MessageSummaryWindow(messages);
-                _summaryWindow.Closed += (s, args) =>
+                else
                 {
-                    _summaryWindow = null;
-                };
-                _summaryWindow.Show();
+                    k.SetValue(AppName, Environment.ProcessPath ?? "");
+                    AddMessage("新通知:🔘 已开启开机自启");
+                }
             }
+            catch (Exception ex) { AddMessage($"新通知:❌ 自启失败: {ex.Message}"); }
         }
 
-        private async void PollingTimer_Tick(object? sender, EventArgs e)
-        {
-            if (_listener != null)
-            {
-                await _listener.FetchLatestNotificationAsync();
-            }
-        }
-
-        private void OnToastDetected(ToastData toastData)
-        {
-            if (!Dispatcher.CheckAccess())
-            {
-                Dispatcher.Invoke(() => OnToastDetected(toastData));
-                return;
-            }
-
-            ToastMessageStore.Add(toastData);
-            _hasUnreadMessages = true;
-
-            if (_hasUnreadMessages) SetAlertIcon(); else SetNormalIcon();
-
-            OnNewToastDetected?.Invoke(toastData);
-
-            if (_summaryWindow != null && _summaryWindow.IsVisible)
-            {
-                _summaryWindow.RefreshMessages();
-            }
-
-            string displayText;
-            if (!string.IsNullOrEmpty(toastData.Title) && !string.IsNullOrEmpty(toastData.Body))
-            {
-                displayText = $"{toastData.Title}: {toastData.Body}";
-            }
-            else if (!string.IsNullOrEmpty(toastData.Title))
-            {
-                displayText = toastData.Title;
-            }
-            else
-            {
-                displayText = toastData.Body ?? "新通知";
-            }
-
-            AddMessage(displayText);
-        }
-
-        public void OnMessagesHaveBeenCleared()
-        {
-            _hasUnreadMessages = ToastMessageStore.UnreadCount > 0;
-            if (_hasUnreadMessages) SetAlertIcon(); else SetNormalIcon();
-        }
-
-        private void AddMessage(string text)
-        {
-            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
-            {
-                _currentToastWindow = new MainWindow();
-                _currentToastWindow.Closed += (s, e) => _currentToastWindow = null;
-            }
-
-            _currentToastWindow.AddMessage(text);
-        }
-
-        private void OnExit(object? sender, ExitEventArgs e)
+        protected override void OnExit(ExitEventArgs e)
         {
             _pollingTimer?.Stop();
             _notifyIcon?.Dispose();
+            _mouseHook?.Stop();
+            base.OnExit(e);
+        }
+
+        private sealed class LowLevelMouseHook
+        {
+            private const int WH_MOUSE_LL = 14;
+            private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+            private readonly HookProc _proc;
+            private IntPtr _hookID;
+
+            public event EventHandler? MouseDown;
+
+            public LowLevelMouseHook() => _proc = HookCallback;
+
+            public void Start()
+            {
+                using var cur = Forms.Cursor.Current;
+                _hookID = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(null), 0);
+            }
+
+            public void Stop()
+            {
+                if (_hookID != IntPtr.Zero)
+                    UnhookWindowsHookEx(_hookID);
+            }
+
+            private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+            {
+                if (nCode >= 0 && (wParam.ToInt32() is 0x0201 or 0x0204))
+                    MouseDown?.Invoke(null, EventArgs.Empty);
+                return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+            }
+
+            [DllImport("user32.dll")]
+            private static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+            [DllImport("user32.dll")]
+            private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+            [DllImport("user32.dll")]
+            private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+            [DllImport("kernel32.dll")]
+            private static extern IntPtr GetModuleHandle(string? lpModuleName);
         }
     }
 }

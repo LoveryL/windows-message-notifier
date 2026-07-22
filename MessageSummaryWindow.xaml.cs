@@ -1,81 +1,91 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
-using Microsoft.Win32;
+using System.Windows.Media.Animation;
 
 namespace Notifier
 {
     public partial class MessageSummaryWindow : Window
     {
-        private bool _isDragging;
-        private Point _dragStartPoint;
-        private const string RegKey = @"Software\Notifier";
+        public event Action? WindowClosed;
 
-        [DllImport("user32.dll")]
-        private static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
-
-        [DllImport("gdi32.dll")]
-        private static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int cx, int cy);
-
-        [DllImport("gdi32.dll")]
-        private static extern int DeleteObject(IntPtr hObject);
+        private bool _isClosing;
+        private bool _allowDeactivate;
 
         public MessageSummaryWindow(IEnumerable<ToastData> messages)
         {
             InitializeComponent();
-            DataContext = this;
+            RefreshMessageList(messages);
 
-            SourceInitialized += (s, e) =>
-            {
-                var hwnd = new WindowInteropHelper(this).Handle;
-                IntPtr rgn = CreateRoundRectRgn(0, 0, (int)Width, (int)Height, 28, 28);
-                if (rgn != IntPtr.Zero)
-                {
-                    SetWindowRgn(hwnd, rgn, true);
-                    DeleteObject(rgn);
-                }
-            };
-
-            Loaded += (s, e) =>
-            {
-                App.OnNewToastDetected += App_OnNewToastDetected;
-                RefreshMessageList(messages);
-            };
+            Loaded += OnFirstLoaded;
+            App.OnNewToastDetected += OnNewToast;
         }
 
-        private void App_OnNewToastDetected(ToastData toastData)
+        #region 入场（动画播完才允许失焦）
+        private void OnFirstLoaded(object? sender, RoutedEventArgs e)
         {
-            if (!Dispatcher.CheckAccess())
+            PositionWindow();
+
+            if (Resources["SlideInAnimation"] is Storyboard sb)
             {
-                Dispatcher.Invoke(() => App_OnNewToastDetected(toastData));
-                return;
+                sb.Completed += (_, __) => _allowDeactivate = true;
+                sb.Begin(this);
+            }
+            else
+            {
+                _allowDeactivate = true;
             }
 
-            RefreshMessages();
+            Show();
+            Activate();
+            Focus();
         }
+        #endregion
+
+        #region 对外：关闭
+        public void RequestClose()
+        {
+            if (_isClosing) return;
+            _isClosing = true;
+
+            if (Resources["SlideOutAnimation"] is Storyboard sb)
+            {
+                sb.Completed -= SlideOut_Completed;
+                sb.Completed += SlideOut_Completed;
+                sb.Begin(this);
+            }
+            else SafeClose();
+        }
+        #endregion
+
+        #region 失焦关闭
+        protected override void OnDeactivated(EventArgs e)
+        {
+            base.OnDeactivated(e);
+
+            if (_allowDeactivate && !_isClosing)
+                RequestClose();
+        }
+        #endregion
+
+        #region 数据 & 已读
+        private void OnNewToast(ToastData t)
+            => Dispatcher.Invoke(RefreshMessages);
 
         public void RefreshMessages()
-        {
-            var messages = ToastMessageStore.GetAll();
-            RefreshMessageList(messages);
-        }
+            => RefreshMessageList(ToastMessageStore.GetAll());
 
-        private void RefreshMessageList(IEnumerable<ToastData> messages)
+        private void RefreshMessageList(IEnumerable<ToastData> msgs)
         {
             var groups = new Dictionary<string, List<string>>();
-
-            foreach (var m in messages)
+            foreach (var m in msgs)
             {
-                var title = string.IsNullOrEmpty(m.Title) ? "新通知" : m.Title;
-                if (!groups.ContainsKey(title))
-                    groups[title] = new List<string>();
-                if (!string.IsNullOrEmpty(m.Body))
-                    groups[title].Add(m.Body);
+                var t = string.IsNullOrWhiteSpace(m.Title) ? "新通知" : m.Title;
+                if (!groups.ContainsKey(t)) groups[t] = new();
+                if (!string.IsNullOrWhiteSpace(m.Body)) groups[t].Add(m.Body);
             }
 
             MessageList.ItemsSource = groups.Select(g => new ToastMessageGroup
@@ -84,96 +94,55 @@ namespace Notifier
                 Bodies = new System.Collections.ObjectModel.ObservableCollection<string>(g.Value)
             });
 
-            var count = groups.Count;
-            if (StatusText != null)
-            {
-                StatusText.Text = count > 0 ? $"共 {count} 条未读通知" : "暂无未读通知";
-            }
+            StatusText.Text = groups.Count > 0 ? $"共 {groups.Count} 条未读" : "暂无未读通知";
         }
 
         private void MessageItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is Border border && border.Tag is string title)
+            if (sender is Border { Tag: string title })
             {
                 ToastMessageStore.RemoveByTitleAndSync(title);
                 RefreshMessages();
-                var app = System.Windows.Application.Current as App;
-                app?.OnMessagesHaveBeenCleared();
+                ((App)Application.Current).OnMessagesHaveBeenCleared();
             }
         }
+        #endregion
 
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                using var key = Registry.CurrentUser.OpenSubKey(RegKey);
-                if (key != null)
-                {
-                    var left = key.GetValue("WindowLeft");
-                    var top = key.GetValue("WindowTop");
-                    if (left != null && top != null)
-                    {
-                        this.Left = System.Convert.ToDouble(left);
-                        this.Top = System.Convert.ToDouble(top);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private void Window_Closed(object sender, System.EventArgs e)
-        {
-            App.OnNewToastDetected -= App_OnNewToastDetected;
-        }
-
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                using var key = Registry.CurrentUser.CreateSubKey(RegKey);
-                key.SetValue("WindowLeft", this.Left);
-                key.SetValue("WindowTop", this.Top);
-            }
-            catch { }
-
-            Close();
-        }
-
+        #region 按钮
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-            var allMessages = ToastMessageStore.GetAll();
-            foreach (var msg in allMessages)
-            {
-                ToastMessageStore.RemoveAndSync(msg);
-            }
-
-            RefreshMessageList(new List<ToastData>());
-            var app = System.Windows.Application.Current as App;
-            app?.OnMessagesHaveBeenCleared();
+            foreach (var m in ToastMessageStore.GetAll().ToList())
+                ToastMessageStore.RemoveAndSync(m);
+            RefreshMessages();
+            ((App)Application.Current).OnMessagesHaveBeenCleared();
         }
 
-        private void RootGrid_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+
+        private void SlideOut_Completed(object? sender, EventArgs e)
+            => SafeClose();
+        #endregion
+
+        #region 关闭清理
+        private void SafeClose()
         {
-            _isDragging = true;
-            _dragStartPoint = e.GetPosition(this);
-            RootGrid.CaptureMouse();
+            App.OnNewToastDetected -= OnNewToast;
+            WindowClosed?.Invoke();
+            Close();
         }
+        #endregion
 
-        private void RootGrid_MouseMove(object sender, MouseEventArgs e)
+        #region
+        private void PositionWindow()
         {
-            if (!_isDragging) return;
+            UpdateLayout();
+            double h = ActualHeight > 0 ? ActualHeight : Height;
+            var screen = System.Windows.Forms.Screen.PrimaryScreen;
+	if (screen == null) return;
+	var area = screen.WorkingArea;
 
-            var currentPoint = e.GetPosition(this);
-            var offset = currentPoint - _dragStartPoint;
-
-            this.Left += offset.X;
-            this.Top += offset.Y;
+            Top  = area.Top  + Math.Max(20, (area.Height - h) * 0.03);
+            Left = area.Left + 18;
         }
-
-        private void RootGrid_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            _isDragging = false;
-            RootGrid.ReleaseMouseCapture();
-        }
+        #endregion
     }
 }
