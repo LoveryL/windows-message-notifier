@@ -211,10 +211,4 @@ namespace Notifier
         #endregion
     }
 
-
-    public class ToastMessageGroup
-    {
-        public string Title { get; set; } = "";
-        public ObservableCollection<string> Bodies { get; set; } = new();
-    }
 }

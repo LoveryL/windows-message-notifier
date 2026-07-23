@@ -89,10 +89,13 @@
                                         Tag="{Binding Title}"
                                         MouseLeftButtonDown="MessageItem_MouseLeftButtonDown">
                                     <StackPanel>
+                                        <!-- 标题行 -->
                                         <TextBlock Text="{Binding Title}"
                                                    FontWeight="SemiBold" FontSize="12"
                                                    Foreground="#CC000000"
                                                    TextWrapping="Wrap"/>
+
+                                        <!-- 正文条目 -->
                                         <ItemsControl ItemsSource="{Binding Bodies}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -104,6 +107,29 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
+
+                                        <!-- 来源应用（右下角小字） -->
+                                        <TextBlock Text="{Binding SourceApp}"
+                                                   FontSize="9.5"
+                                                   Foreground="#777777"
+                                                   HorizontalAlignment="Right"
+                                                   Margin="0,4,4,0"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <!-- 无来源时隐藏整行 -->
+                                                        <DataTrigger Binding="{Binding SourceApp}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SourceApp}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
