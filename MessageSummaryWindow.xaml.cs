@@ -10,33 +10,37 @@ namespace Notifier
 {
     public partial class MessageSummaryWindow : Window
     {
+        public event Action<bool>? ReportFocusState;
         public event Action? WindowClosed;
 
-        private bool _isClosing;
+        internal bool _isClosing;
         private bool _allowDeactivate;
 
-        public MessageSummaryWindow(IEnumerable<ToastData> messages)
+        public MessageSummaryWindow()
         {
             InitializeComponent();
-            RefreshMessageList(messages);
-
             Loaded += OnFirstLoaded;
             App.OnNewToastDetected += OnNewToast;
         }
 
-        #region 入场（动画播完才允许失焦）
+        #region 入场
         private void OnFirstLoaded(object? sender, RoutedEventArgs e)
         {
             PositionWindow();
 
             if (Resources["SlideInAnimation"] is Storyboard sb)
             {
-                sb.Completed += (_, __) => _allowDeactivate = true;
+                sb.Completed += (_, __) =>
+                {
+                    _allowDeactivate = true;
+                    ReportFocusState?.Invoke(true);
+                };
                 sb.Begin(this);
             }
             else
             {
                 _allowDeactivate = true;
+                ReportFocusState?.Invoke(true);
             }
 
             Show();
@@ -45,8 +49,30 @@ namespace Notifier
         }
         #endregion
 
-        #region 对外：关闭
-        public void RequestClose()
+        #region 焦点
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (_allowDeactivate)
+                ReportFocusState?.Invoke(true);
+        }
+
+        protected override void OnDeactivated(EventArgs e)
+        {
+            base.OnDeactivated(e);
+            if (!_allowDeactivate) return;
+
+            Dispatcher.BeginInvoke(() =>
+                ReportFocusState?.Invoke(false),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+        #endregion
+
+        #region App 调用
+        public void RequestCloseFromApp()
+            => InternalRequestClose();
+
+        private void InternalRequestClose()
         {
             if (_isClosing) return;
             _isClosing = true;
@@ -59,21 +85,20 @@ namespace Notifier
             }
             else SafeClose();
         }
-        #endregion
 
-        #region 失焦关闭
-        protected override void OnDeactivated(EventArgs e)
+        private void SlideOut_Completed(object? sender, EventArgs e)
+            => SafeClose();
+
+        private void SafeClose()
         {
-            base.OnDeactivated(e);
-
-            if (_allowDeactivate && !_isClosing)
-                RequestClose();
+            App.OnNewToastDetected -= OnNewToast;
+            WindowClosed?.Invoke();
+            Close();
         }
         #endregion
 
-        #region 数据 & 已读
-        private void OnNewToast(ToastData t)
-            => Dispatcher.Invoke(RefreshMessages);
+        #region 数据 & 清空
+        private void OnNewToast(ToastData t) => Dispatcher.Invoke(RefreshMessages);
 
         public void RefreshMessages()
             => RefreshMessageList(ToastMessageStore.GetAll());
@@ -106,9 +131,7 @@ namespace Notifier
                 ((App)Application.Current).OnMessagesHaveBeenCleared();
             }
         }
-        #endregion
 
-        #region 按钮
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
             foreach (var m in ToastMessageStore.GetAll().ToList())
@@ -116,32 +139,17 @@ namespace Notifier
             RefreshMessages();
             ((App)Application.Current).OnMessagesHaveBeenCleared();
         }
-
-
-        private void SlideOut_Completed(object? sender, EventArgs e)
-            => SafeClose();
         #endregion
 
-        #region 关闭清理
-        private void SafeClose()
-        {
-            App.OnNewToastDetected -= OnNewToast;
-            WindowClosed?.Invoke();
-            Close();
-        }
-        #endregion
-
-        #region
+        #region 布局
         private void PositionWindow()
         {
             UpdateLayout();
             double h = ActualHeight > 0 ? ActualHeight : Height;
-            var screen = System.Windows.Forms.Screen.PrimaryScreen;
-	if (screen == null) return;
-	var area = screen.WorkingArea;
-
-            Top  = area.Top  + Math.Max(20, (area.Height - h) * 0.03);
-            Left = area.Left + 18;
+            var s = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea;
+            if (s == null) return;
+            Top = s.Value.Top + Math.Max(20, (s.Value.Height - h) * 0.03);
+            Left = s.Value.Left + 18;
         }
         #endregion
     }

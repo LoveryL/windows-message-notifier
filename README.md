@@ -16,7 +16,7 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 
 ---
 
-## 📸 预览截图 | Screenshots
+## 📸 预览截图(部分) | Screenshots
 
 | 通知弹窗效果 | 消息汇总面板 |
 |:---:|:---:|

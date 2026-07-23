@@ -10,6 +10,7 @@
         ResizeMode="NoResize"
         Topmost="True"
         ShowInTaskbar="False"
+        ShowActivated="True"
         WindowStartupLocation="Manual"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True">
