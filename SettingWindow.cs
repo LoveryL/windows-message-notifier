@@ -71,6 +71,14 @@ namespace Notifier
             }
             else _allowDeactivate = true;
 
+            // ========== [新增] SMTC 初始化 ==========
+            InitializeSMTC();
+
+            // ========== [新增] 绑定 SMTC 按钮事件 ==========
+            BtnPrevious.Click += OnPreviousClicked;
+            BtnPlayPause.Click += OnPlayPauseClicked;
+            BtnNext.Click += OnNextClicked;
+
             Show();
         }
         #endregion
@@ -143,6 +151,10 @@ namespace Notifier
         {
             WindowClosed?.Invoke();
             _settings.Dispose();
+
+            // ========== [新增] 清理 SMTC 资源 ==========
+            CleanupSMTC();
+
             Close();
         }
         #endregion

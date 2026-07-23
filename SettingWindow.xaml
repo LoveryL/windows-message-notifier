@@ -201,34 +201,57 @@
                         <TextBlock Text="☀️" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="亮度" FontSize="12" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="BrightnessSlider"
-        Minimum="0" Maximum="100" Value="70"
-        Template="{StaticResource BrightnessSliderTemplate}"
-        IsSnapToTickEnabled="False"
-        Margin="8,0,0,0"/>
+                                Minimum="0" Maximum="100" Value="70"
+                                Template="{StaticResource BrightnessSliderTemplate}"
+                                IsSnapToTickEnabled="False"
+                                Margin="8,0,0,0"/>
                     </DockPanel>
                 </StackPanel>
 
-                <!-- 底部：媒体控制 -->
-                <Border Grid.Row="2" Background="#E2E2E2" CornerRadius="0,0,14,14" Padding="0,14">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button x:Name="BtnPrevious"
-                                Style="{StaticResource CircleMediaBtn}"
-                                ToolTip="上一首">
-                            <TextBlock Text="⏮" FontSize="18"/>
-                        </Button>
+                <!-- 底部：媒体控制 + 歌曲信息 -->
+                <Border Grid.Row="2" Background="#E2E2E2" CornerRadius="0,0,14,14" Padding="0,12,0,14">
+                    <StackPanel>
+                        <!-- 新增：歌曲名称与作者 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                            <TextBlock x:Name="SongTitle" 
+                                       Text="未在播放" 
+                                       FontSize="12" 
+                                       FontWeight="SemiBold" 
+                                       Foreground="#444"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text=" — " 
+                                       FontSize="11" 
+                                       Foreground="#888" 
+                                       VerticalAlignment="Center"
+                                       Margin="3,0"/>
+                            <TextBlock x:Name="SongArtist" 
+                                       Text="未知艺术家" 
+                                       FontSize="11" 
+                                       Foreground="#777"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
 
-                        <Button x:Name="BtnPlayPause"
-                                Style="{StaticResource CircleMediaBtn}"
-                                Margin="26,0"
-                                ToolTip="暂停 / 播放">
-                            <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20"/>
-                        </Button>
+                        <!-- 原有的媒体控制按钮 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button x:Name="BtnPrevious"
+                                    Style="{StaticResource CircleMediaBtn}"
+                                    ToolTip="上一首">
+                                <TextBlock Text="⏮" FontSize="18"/>
+                            </Button>
 
-                        <Button x:Name="BtnNext"
-                                Style="{StaticResource CircleMediaBtn}"
-                                ToolTip="下一首">
-                            <TextBlock Text="⏭" FontSize="18"/>
-                        </Button>
+                            <Button x:Name="BtnPlayPause"
+                                    Style="{StaticResource CircleMediaBtn}"
+                                    Margin="26,0"
+                                    ToolTip="暂停 / 播放">
+                                <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20"/>
+                            </Button>
+
+                            <Button x:Name="BtnNext"
+                                    Style="{StaticResource CircleMediaBtn}"
+                                    ToolTip="下一首">
+                                <TextBlock Text="⏭" FontSize="18"/>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
