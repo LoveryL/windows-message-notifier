@@ -13,6 +13,8 @@
     <EmbeddedResource Include="Resources/icon_normal.ico" />
     <EmbeddedResource Include="Resources/icon_alert.ico" />
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="System.Management" Version="10.0.10" />
   </ItemGroup>
 
 </Project>

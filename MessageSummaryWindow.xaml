@@ -108,7 +108,7 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
-                                        <!-- 来源应用（右下角小字） -->
+                                        <!-- 来源应用 -->
                                         <TextBlock Text="{Binding SourceApp}"
                                                    FontSize="9.5"
                                                    Foreground="#777777"

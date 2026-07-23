@@ -6,29 +6,19 @@ using System.Threading.Tasks;
 
 namespace Notifier
 {
-    /// <summary>
-    /// 应用激活工具类：通过 AUMID（AppUserModelId）唤醒/启动发出通知的应用。
-    /// 优先使用 WinRT PackageManager + AppListEntry.LaunchAsync；
-    /// 失败则回退到 Shell COM IApplicationActivationManager。
-    /// </summary>
+
     public static class AppActivator
     {
-        /// <summary>
-        /// 通过 AUMID 唤醒/启动对应的应用。
-        /// </summary>
-        /// <param name="aumid">应用用户模型 ID，例如 "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"</param>
-        /// <returns>(是否成功, 说明信息)</returns>
+
         public static async Task<(bool Success, string Message)> active_app(string aumid)
         {
             if (string.IsNullOrWhiteSpace(aumid))
                 return (false, "AUMID 为空，无法激活应用");
 
-            // 方法 1：WinRT PackageManager + AppListEntry.LaunchAsync（推荐，UWP/WinUI 3）
             var winrtResult = await TryLaunchViaWinRT(aumid);
             if (winrtResult.Success)
                 return winrtResult;
 
-            // 方法 2：COM IApplicationActivationManager（兼容 .NET Framework / WinForms）
             var comResult = TryLaunchViaCom(aumid);
             if (comResult.Success)
                 return comResult;
@@ -127,14 +117,14 @@ namespace Notifier
                 if (activator == null)
                     return (false, "创建 ApplicationActivationManager 实例失败");
 
-                // arguments 传空字符串而非 null，避免 nullable 警告；语义等价
+
                 int hr = (int)activator.ActivateApplication(
                     aumid,
                     string.Empty,
                     ActivateOptions.None,
                     out uint pid);
 
-                if (hr == 0) // S_OK
+                if (hr == 0) 
                     return (true, $"已通过 COM 唤醒应用，进程 PID = {pid}");
 
                 return (false, $"ActivateApplication 返回 HRESULT = 0x{hr:X8}");

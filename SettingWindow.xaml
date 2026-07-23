@@ -201,10 +201,10 @@
                         <TextBlock Text="☀️" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="亮度" FontSize="12" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="BrightnessSlider"
-                                Minimum="0" Maximum="100" Value="70"
-                                Template="{StaticResource BrightnessSliderTemplate}"
-                                IsSnapToTickEnabled="False"
-                                Margin="8,0,0,0"/>
+        Minimum="0" Maximum="100" Value="70"
+        Template="{StaticResource BrightnessSliderTemplate}"
+        IsSnapToTickEnabled="False"
+        Margin="8,0,0,0"/>
                     </DockPanel>
                 </StackPanel>
 

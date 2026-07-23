@@ -12,16 +12,57 @@ namespace Notifier
         internal bool _isClosing;
         private bool _allowDeactivate;
 
+        private readonly SystemSettingsManager _settings = new();
+        private bool _isInitializing;
+
         public SettingWindow()
         {
             InitializeComponent();
+            LoadCurrentSettings();
             Loaded += OnFirstLoaded;
         }
+
+        #region 启动读取
+        private void LoadCurrentSettings()
+        {
+            _isInitializing = true;
+
+            try
+            {
+                // ---- 音量 ----
+                float vol = _settings.GetSystemVolume();
+                VolumeSlider.Value = vol * 100.0;
+
+                // ---- 亮度 ----
+                int brightnessPercent;
+
+                if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+                {
+                    brightnessPercent = _settings.GetScreenBrightness();
+                }
+                else
+                {
+                    int sim = _settings.GetSimulatedBrightness();
+                    brightnessPercent = sim >= 0 ? sim : 70; // 默认 70%
+                }
+
+                BrightnessSlider.Value = Math.Clamp(brightnessPercent, 0, 100);
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+        }
+        #endregion
 
         #region 入场
         private void OnFirstLoaded(object? sender, RoutedEventArgs e)
         {
-            PositionWindow();
+            Dispatcher.BeginInvoke(new Action(PositionWindow),
+                System.Windows.Threading.DispatcherPriority.Background);
+
+            VolumeSlider.ValueChanged += OnVolumeChanged;
+            BrightnessSlider.ValueChanged += OnBrightnessChanged;
 
             if (Resources["SlideInAnimation"] is Storyboard sb)
             {
@@ -31,6 +72,33 @@ namespace Notifier
             else _allowDeactivate = true;
 
             Show();
+        }
+        #endregion
+
+        #region 滑块拖动|同步系统
+        private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isInitializing) return;
+
+            float level = (float)(e.NewValue / 100.0);
+            _settings.SetSystemVolume(level);
+        }
+
+        private void OnBrightnessChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isInitializing) return;
+
+            int percent = (int)Math.Clamp(e.NewValue, 0, 100);
+
+            if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+            {
+                _settings.TrySetScreenBrightness(percent);
+            }
+            else
+            {
+                int safePercent = Math.Max(5, percent);
+                _settings.SetSimulatedBrightness(safePercent);
+            }
         }
         #endregion
 
@@ -74,6 +142,7 @@ namespace Notifier
         private void SafeClose()
         {
             WindowClosed?.Invoke();
+            _settings.Dispose();
             Close();
         }
         #endregion
@@ -85,7 +154,7 @@ namespace Notifier
             double h = ActualHeight > 0 ? ActualHeight : Height;
             var s = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea;
             if (s == null) return;
-            Top = s.Value.Top + Math.Max(20, (s.Value.Height - h) * 0.03)*2+h;
+            Top = s.Value.Top + Math.Max(20, (s.Value.Height - h) * 0.03) * 2 + h;
             Left = s.Value.Left + 18;
         }
         #endregion
