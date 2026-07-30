@@ -97,16 +97,8 @@ Visibility="Hidden">
         <!-- inner surface with slight inner glow -->
         <Border CornerRadius="11" Margin="1" Background="Transparent" Effect="{StaticResource GlassInnerGlow}" IsHitTestVisible="False"/>
 
-        <!-- subtle inner sheen -->
-        <Border CornerRadius="11" IsHitTestVisible="False" Margin="0">
-            <Border.Background>
-                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Top">
-                    <VisualBrush.Visual>
-                        <Rectangle Fill="{StaticResource GlassHighlightBrush}"/>
-                    </VisualBrush.Visual>
-                </VisualBrush>
-            </Border.Background>
-        </Border>
+        <!-- subtle inner sheen (lightweight) -->
+        <Border CornerRadius="11" IsHitTestVisible="False" Margin="1" Background="{StaticResource GlassHighlightBrush}" Opacity="0.06"/>
 
 <Grid Grid.Row="0" Margin="0,0,0,6">
 <Grid.ColumnDefinitions>
