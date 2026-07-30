@@ -90,12 +90,12 @@ Visibility="Hidden">
         Background="{StaticResource GlassBackgroundBrush}"
         Effect="{StaticResource GlassShadowEffect}">
     <Grid Margin="16,10,16,12">
-        <!-- inner surface with slight inner glow -->
-        <Border CornerRadius="11" Margin="1" Background="Transparent" Effect="{StaticResource GlassInnerGlow}" IsHitTestVisible="False"/>
 <Grid.RowDefinitions>
 <RowDefinition Height="Auto"/>
 <RowDefinition Height="Auto"/>
 </Grid.RowDefinitions>
+        <!-- inner surface with slight inner glow -->
+        <Border CornerRadius="11" Margin="1" Background="Transparent" Effect="{StaticResource GlassInnerGlow}" IsHitTestVisible="False"/>
 
         <!-- subtle inner sheen -->
         <Border CornerRadius="11" IsHitTestVisible="False" Margin="0">
