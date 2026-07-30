@@ -81,9 +81,6 @@ Visibility="Hidden">
             <TranslateTransform X="60"/>
         </TransformGroup>
     </Grid.RenderTransform>
-<Grid.RenderTransform>
-<TranslateTransform X="60"/>
-</Grid.RenderTransform>
 
 <Border CornerRadius="12"
         BorderBrush="{StaticResource GlassBorderBrush}"
