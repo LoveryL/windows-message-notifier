@@ -53,8 +53,10 @@ namespace Notifier
                     Opacity = App.Config.MainWindowOpacity;
             }
             catch { }
-n            Loaded += (_, __) => PositionWindow();
-n            SourceInitialized += (_, __) =>
+
+            Loaded += (_, __) => PositionWindow();
+
+            SourceInitialized += (_, __) =>
             {
                 IntPtr hwnd = new WindowInteropHelper(this).Handle;
                 int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
