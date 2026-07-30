@@ -22,7 +22,7 @@ namespace Notifier
         private bool _summaryFocus;
         private bool _settingFocus;
 
-        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
         private const string AppName = "Notifier";
 
         // Loaded configuration (from registry)
@@ -43,16 +43,20 @@ namespace Notifier
 
             // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
             // (Timer creation moved to InitializeListenerAsync.)
-n            // If configuration indicates MainWindow should be shown at startup, create it now and apply stored properties.
+
+            // If configuration indicates MainWindow should be shown at startup, create it now and apply stored properties.
             if (Config.MainWindowShown)
-            {n                _currentToastWindow = new MainWindow();
+            {
+                _currentToastWindow = new MainWindow();
                 try
-                {n                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow.Opacity = Config.MainWindowOpacity;
+                {
+                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow.Opacity = Config.MainWindowOpacity;
                     if (!double.IsNaN(Config.MainWindowTop)) _currentToastWindow.Top = Config.MainWindowTop;
                     if (!double.IsNaN(Config.MainWindowLeft)) _currentToastWindow.Left = Config.MainWindowLeft;
                 }
                 catch { }
-n                _currentToastWindow.Show();
+
+                _currentToastWindow.Show();
                 _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
             }
         }
