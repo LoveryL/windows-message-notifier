@@ -18,9 +18,11 @@ namespace Notifier
         public SettingWindow()
         {
             InitializeComponent();
-n            // Apply configured opacity if available
+
+            // Apply configured opacity if available
             try { if (App.Config != null && !double.IsNaN(App.Config.SettingWindowOpacity)) Opacity = App.Config.SettingWindowOpacity; } catch { }
-n            LoadCurrentSettings();
+
+            LoadCurrentSettings();
             Loaded += OnFirstLoaded;
         }
 
