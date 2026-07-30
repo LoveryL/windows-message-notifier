@@ -18,9 +18,9 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 
 ## 📸 预览截图(部分) | Screenshots
 
-| 通知弹窗效果 | 消息汇总面板 |
-|:---:|:---:|
-| <img width="400" alt="Toast Popup" src="https://github.com/user-attachments/assets/e0fa82b3-46a0-4a32-8161-189f7424db8f" /> | <img width="600" alt="Message Summary" src="https://github.com/user-attachments/assets/ec782889-d8f8-4296-8b90-a03e4025276f" /> |
+| 通知弹窗效果 | 一体化设计 | 消息汇总面板及设置面板 |
+|:---:|:---:|:---:|
+| <img width="400" alt="Toast Popup" src="https://github.com/user-attachments/assets/e0fa82b3-46a0-4a32-8161-189f7424db8f" /> | <img width="600" alt="Message Summary" src="https://github.com/user-attachments/assets/ec782889-d8f8-4296-8b90-a03e4025276f" /> |<img width="616" height="684" alt="QQ20260730-152238" src="https://github.com/user-attachments/assets/243669ad-46bd-4ce5-b2ae-bab1af565eed" />|
 
 ---
 
@@ -46,13 +46,20 @@ windows-message-notifier/
 │   └── workflows/
 │       └── dotnet.yml              # GitHub Actions 自动构建工作流
 ├── Resources/                      # 资源文件（图标等）
-├── App.xaml / App.xaml.cs          # 应用程序入口，系统托盘初始化
+├── App.xaml / .cs                  # 应用程序入口，系统托盘初始化
 ├── MainWindow.xaml / .cs           # 通知弹窗窗口（Toast Popup）
 ├── MessageSummaryWindow.xaml / .cs # 消息汇总窗口
 ├── toast.cs                        # Toast 通知监听与解析核心逻辑
 ├── toastmessagestore.cs            # 未读消息存储与同步管理
 ├── NullToVisibilityConverter.cs    # XAML 值转换器
-├── Notifier.csproj                 # 项目配置 (.NET 10 / WinExe)
+├── Notifier.csproj                 # 项目配置 (.NET 10)
+├── SMTC.cs                         #系统媒体控制入口
+├── appactivator.cs                 #根据toast信息激活
+├── SettingWindow.SMTC.cs           #SettingWindow附加类
+├── SettingWindow.xmal / .cs        #设置窗口
+├── SystemSettingManager.cs         #Audio和Brightness管理入口
+├── brightness.cs / Audio.cs        #Audio和Brightness控制
+├── RegistryConfig.cs               #注册表管理
 └── README.md
 ```
 
@@ -72,7 +79,7 @@ windows-message-notifier/
 2. 下载最新版本的 `release.zip`
 3. 解压后运行 `Notifier.exe`
 
-### 运行方式二：从源码构建(对于普通用户不推荐)
+### 运行方式二：从源码构建(对于普通用户不推荐,如果有dotnet 10开发环境可选)
 
 ```bash
 # 克隆仓库
@@ -89,7 +96,7 @@ dotnet run --configuration Release
 
 ### 首次使用配置
 
-首次运行时，应用会请求 **通知访问权限**：
+首次运行时，应用可能会请求 **通知访问权限**：
 
 > **设置路径**：`设置 → 隐私和安全性 → 通知 → 允许此应用访问通知`
 
@@ -109,18 +116,21 @@ dotnet run --configuration Release
        │
        ├── 解析标题 + 正文
        │
-       ├── 弹出右下角自定义 Toast 窗口（5 秒后自动消失）
+       ├── 弹出右上角自定义 Toast 窗口（5 秒后自动消失）
        │
        ├── 托盘图标切换为"提醒"状态
        │
        └── 点击托盘图标 → 打开消息汇总面板
+点击托盘图标
+     │
+     └── 打开消息汇总面板，设置面板
 ```
 
 ### 托盘图标操作
 
 | 操作 | 效果 |
 |:---|:---|
-| **左键单击** 托盘图标 | 打开 / 聚焦消息汇总窗口 |
+| **左键单击** 托盘图标 | 打开 / 聚焦消息汇总窗口和设置窗口 |
 | **右键** → 开机自启 | 开启 / 关闭开机自启动 |
 | **右键** → 退出 | 关闭应用 |
 
@@ -129,6 +139,11 @@ dotnet run --configuration Release
 - 按通知 **标题分组** 展示所有捕获的消息
 - 点击 **"清除"** 按钮：按标题批量清除对应通知
 - 关闭窗口后重新打开可刷新消息列表
+
+### 设置面板
+
+- 可**拖动**、**调节**屏幕亮度以及系统音量
+- 展示、控制SMTC信息
 
 ---
 
@@ -155,7 +170,7 @@ dotnet run --configuration Release
 
 ## ⚠️ 注意事项 | Notes
 
-- 🚧 **项目处于早期开发阶段**，功能与 API 可能随时调整
+- 🚧 **项目处于早期开发阶段**
 - 💻 需要 **Windows 10 (Build 1809+)** 或 **Windows 11** 以获得 Toast 通知支持
 - 🔐 首次运行需要 **用户授权通知访问权限**
 - 📌 当前已过滤微信通知
@@ -178,4 +193,4 @@ dotnet run --configuration Release
 
 ---
 
-> ⭐ 如果这个项目对你有帮助，欢迎给它一个 Star！
+> ⭐ 如果这个项目对你有帮助，欢迎给它一个 Star！Made with Deepseek and Copilot
