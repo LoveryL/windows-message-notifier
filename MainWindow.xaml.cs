@@ -158,18 +158,24 @@ namespace Notifier
         #region 自动隐藏计时器
         private void StartHideTimer()
         {
-            _hideTimer?.Stop();
-
-            _hideTimer = new DispatcherTimer
+            // reuse the same timer instance to avoid repeated allocations and duplicate handlers
+            if (_hideTimer == null)
             {
-                Interval = TimeSpan.FromSeconds(5)
-            };
+                _hideTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(5)
+                };
 
-            _hideTimer.Tick += (_, __) =>
+                _hideTimer.Tick += (_, __) =>
+                {
+                    _hideTimer.Stop();
+                    PlaySlideOutAnimationAndHide();
+                };
+            }
+            else
             {
                 _hideTimer.Stop();
-                PlaySlideOutAnimationAndHide();
-            };
+            }
 
             _hideTimer.Start();
         }

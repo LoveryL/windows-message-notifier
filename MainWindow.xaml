@@ -90,9 +90,17 @@ VerticalAlignment="Center"/>
 <ScrollViewer Grid.Row="1"
 MaxHeight="350"
 VerticalScrollBarVisibility="Auto"
-HorizontalScrollBarVisibility="Disabled">
+HorizontalScrollBarVisibility="Disabled"
+CanContentScroll="True">
 <ItemsControl x:Name="MessageList"
-IsHitTestVisible="False">
+IsHitTestVisible="False"
+VirtualizingStackPanel.IsVirtualizing="True"
+VirtualizingStackPanel.VirtualizationMode="Recycling">
+    <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+            <VirtualizingStackPanel/>
+        </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
 <ItemsControl.ItemTemplate>
 <DataTemplate>
 <Border CornerRadius="8"
