@@ -74,8 +74,13 @@ From="1" To="0" Duration="0:0:0.30"/>
         Background="{StaticResource GlassBackgroundBrush}"
         Effect="{StaticResource GlassShadowEffect}">
     <Grid Margin="16,10,16,12">
+<Grid.RowDefinitions>
+<RowDefinition Height="Auto"/>
+<RowDefinition Height="Auto"/>
+</Grid.RowDefinitions>
+
         <!-- subtle inner sheen -->
-        <Border CornerRadius="11" IsHitTestVisible="False" Margin="0" Background="Transparent">
+        <Border CornerRadius="11" IsHitTestVisible="False" Margin="0">
             <Border.Background>
                 <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Top">
                     <VisualBrush.Visual>
@@ -84,10 +89,6 @@ From="1" To="0" Duration="0:0:0.30"/>
                 </VisualBrush>
             </Border.Background>
         </Border>
-<Grid.RowDefinitions>
-<RowDefinition Height="Auto"/>
-<RowDefinition Height="Auto"/>
-</Grid.RowDefinitions>
 
 <Grid Grid.Row="0" Margin="0,0,0,6">
 <Grid.ColumnDefinitions>
