@@ -77,8 +77,16 @@
                 <!-- 消息列表 -->
                 <ScrollViewer Grid.Row="1"
                               Margin="12,8,12,8"
-                              VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="MessageList" IsHitTestVisible="True">
+                              VerticalScrollBarVisibility="Auto"
+                              CanContentScroll="True">
+                    <ItemsControl x:Name="MessageList" IsHitTestVisible="True"
+                                  VirtualizingStackPanel.IsVirtualizing="True"
+                                  VirtualizingStackPanel.VirtualizationMode="Recycling">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border CornerRadius="8"

@@ -13,6 +13,7 @@ namespace Notifier
         private SMTCController? _smtcController;
         private bool _smtcInitialized;
         private string _lastTitle = string.Empty;  // 记录上一次的标题，用于检测变化
+        private bool _smtcBusy = false; // 防止并发执行 SMTC 操作
 
         /// <summary>
         /// 初始化 SMTC（在窗口加载后调用）
@@ -153,8 +154,8 @@ namespace Notifier
         /// </summary>
         private async void OnPreviousClicked(object sender, RoutedEventArgs e)
         {
-            if (_smtcController == null || !_smtcInitialized) return;
-
+            if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
+            _smtcBusy = true;
             try
             {
                 // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
@@ -168,6 +169,10 @@ namespace Notifier
             {
                 Console.WriteLine($"上一首操作失败: {ex.Message}");
             }
+            finally
+            {
+                _smtcBusy = false;
+            }
         }
 
         /// <summary>
@@ -175,8 +180,8 @@ namespace Notifier
         /// </summary>
         private async void OnPlayPauseClicked(object sender, RoutedEventArgs e)
         {
-            if (_smtcController == null || !_smtcInitialized) return;
-
+            if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
+            _smtcBusy = true;
             try
             {
                 // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
@@ -186,6 +191,10 @@ namespace Notifier
             {
                 Console.WriteLine($"播放/暂停操作失败: {ex.Message}");
             }
+            finally
+            {
+                _smtcBusy = false;
+            }
         }
 
         /// <summary>
@@ -193,8 +202,8 @@ namespace Notifier
         /// </summary>
         private async void OnNextClicked(object sender, RoutedEventArgs e)
         {
-            if (_smtcController == null || !_smtcInitialized) return;
-
+            if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
+            _smtcBusy = true;
             try
             {
                 // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
@@ -207,6 +216,10 @@ namespace Notifier
             catch (Exception ex)
             {
                 Console.WriteLine($"下一首操作失败: {ex.Message}");
+            }
+            finally
+            {
+                _smtcBusy = false;
             }
         }
 

@@ -35,9 +35,8 @@ namespace Notifier
             InitializeNotifyIcon();
             _ = InitializeListenerAsync();
 
-            _pollingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _pollingTimer.Tick += (_, __) => _ = _listener?.FetchLatestNotificationAsync();
-            _pollingTimer.Start();
+            // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
+            // (Timer creation moved to InitializeListenerAsync.)
         }
 
         #region 托盘
@@ -127,6 +126,11 @@ namespace Notifier
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
             AddMessage("新信息:✅ 通知监听已启动");
+
+            // Start polling only after listener initialization to reduce CPU usage during startup.
+            _pollingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
+            _pollingTimer.Tick += (_, __) => _ = _listener?.FetchLatestNotificationAsync();
+            _pollingTimer.Start();
         }
 
         private void OnToastDetected(ToastData toast)
