@@ -52,21 +52,45 @@
         <SolidColorBrush x:Key="GlassTextBrush" Color="#FF1C1C1E"/>
         <SolidColorBrush x:Key="GlassSecondaryTextBrush" Color="#77000000"/>
         <LinearGradientBrush x:Key="GlassBackgroundBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#CCFFFFFF" Offset="0"/>
-            <GradientStop Color="#B3FFFFFF" Offset="0.5"/>
-            <GradientStop Color="#99FFFFFF" Offset="1"/>
+            <GradientStop Color="#DDF3F4F6" Offset="0"/>
+            <GradientStop Color="#CCF8F9FA" Offset="0.45"/>
+            <GradientStop Color="#B3F2F4F6" Offset="1"/>
         </LinearGradientBrush>
-        <SolidColorBrush x:Key="GlassBorderBrush" Color="#30FFFFFF"/>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#26FFFFFF"/>
         <LinearGradientBrush x:Key="GlassHighlightBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#33FFFFFF" Offset="0"/>
-            <GradientStop Color="#0FFFFFFF" Offset="1"/>
+            <GradientStop Color="#40FFFFFF" Offset="0"/>
+            <GradientStop Color="#00FFFFFF" Offset="1"/>
         </LinearGradientBrush>
-        <DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.12"/>
+        <DropShadowEffect x:Key="GlassInnerGlow" Color="#000000" BlurRadius="10" ShadowDepth="0" Opacity="0.06"/>
+        <DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="14" ShadowDepth="2" Opacity="0.12"/>
+
+        <!-- Entrance scale -->
+        <Storyboard x:Key="ScaleInAnimation">
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)" From="0.985" To="1" Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)" From="0.985" To="1" Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <!-- Item hover animations -->
+        <Storyboard x:Key="ItemHoverIn">
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-3" Duration="0:0:0.12" />
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.14" Duration="0:0:0.12" />
+        </Storyboard>
+        <Storyboard x:Key="ItemHoverOut">
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.06" Duration="0:0:0.12" />
+        </Storyboard>
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Opacity="0">
         <Grid.RenderTransform>
-            <TranslateTransform X="-420"/>
+            <TransformGroup>
+                <ScaleTransform ScaleX="1" ScaleY="1"/>
+                <TranslateTransform X="-420"/>
+            </TransformGroup>
         </Grid.RenderTransform>
 
         <Border CornerRadius="14"
@@ -105,13 +129,20 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border CornerRadius="8"
+                                <Border x:Name="ItemBorder" CornerRadius="8"
                                         Background="#14000000"
                                         Padding="12,8"
                                         Margin="0,4"
                                         Cursor="Hand"
                                         Tag="{Binding Title}"
-                                        MouseLeftButtonDown="MessageItem_MouseLeftButtonDown">
+                                        MouseLeftButtonDown="MessageItem_MouseLeftButtonDown"
+                                        RenderTransformOrigin="0.5,0.5">
+                                        <Border.RenderTransform>
+                                            <TranslateTransform Y="0"/>
+                                        </Border.RenderTransform>
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="0" Opacity="0.06"/>
+                                        </Border.Effect>
                                     <StackPanel>
                                         <!-- 标题行 -->
                                         <TextBlock Text="{Binding Title}"
@@ -156,6 +187,24 @@
                                         </TextBlock>
                                     </StackPanel>
                                 </Border>
+                                <DataTemplate.Triggers>
+                                    <EventTrigger RoutedEvent="MouseEnter">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="ItemBorder" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-3" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="ItemBorder" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.14" Duration="0:0:0.12" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                    <EventTrigger RoutedEvent="MouseLeave">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="ItemBorder" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+                                                <DoubleAnimation Storyboard.TargetName="ItemBorder" Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.06" Duration="0:0:0.12" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

@@ -72,6 +72,8 @@ namespace Notifier
             {
                 sb.Completed += (_, __) => _allowDeactivate = true;
                 sb.Begin(this);
+                if (Resources["ScaleInAnimation"] is Storyboard ss)
+                    ss.Begin(this);
             }
             else _allowDeactivate = true;
 

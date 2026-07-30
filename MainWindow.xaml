@@ -15,53 +15,72 @@ ShowInTaskbar="False"
 Visibility="Hidden">
 
 <Window.Resources>
+<!-- Slide animations -->
 <Storyboard x:Key="SlideInAnimation">
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
-From="80" To="0" Duration="0:0:0.25">
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" From="80" To="0" Duration="0:0:0.25">
 <DoubleAnimation.EasingFunction>
 <CubicEase EasingMode="EaseOut"/>
 </DoubleAnimation.EasingFunction>
 </DoubleAnimation>
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="Opacity" 
-From="0" To="1" Duration="0:0:0.25"/>
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25"/>
 </Storyboard>
 
 <Storyboard x:Key="SlideOutAnimation">
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
-From="0" To="80" Duration="0:0:0.35">
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" From="0" To="80" Duration="0:0:0.35">
 <DoubleAnimation.EasingFunction>
 <CubicEase EasingMode="EaseIn"/>
 </DoubleAnimation.EasingFunction>
 </DoubleAnimation>
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="Opacity" 
-From="1" To="0" Duration="0:0:0.30"/>
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:0.30"/>
 </Storyboard>
 
-<!-- Liquid glass resources (lightweight, no expensive blur) -->
+<!-- Liquid glass resources (lightweight) -->
 <SolidColorBrush x:Key="GlassTextBrush" Color="#FF1C1C1E"/>
 <SolidColorBrush x:Key="GlassSecondaryTextBrush" Color="#77000000"/>
 <LinearGradientBrush x:Key="GlassBackgroundBrush" StartPoint="0,0" EndPoint="0,1">
-    <GradientStop Color="#CCFFFFFF" Offset="0"/>
-    <GradientStop Color="#B3FFFFFF" Offset="0.5"/>
-    <GradientStop Color="#99FFFFFF" Offset="1"/>
+    <GradientStop Color="#DDF3F4F6" Offset="0"/>
+    <GradientStop Color="#CCF8F9FA" Offset="0.45"/>
+    <GradientStop Color="#B3F2F4F6" Offset="1"/>
 </LinearGradientBrush>
-<SolidColorBrush x:Key="GlassBorderBrush" Color="#30FFFFFF"/>
+<SolidColorBrush x:Key="GlassBorderBrush" Color="#26FFFFFF"/>
 <LinearGradientBrush x:Key="GlassHighlightBrush" StartPoint="0,0" EndPoint="1,1">
-    <GradientStop Color="#33FFFFFF" Offset="0"/>
-    <GradientStop Color="#0FFFFFFF" Offset="1"/>
+    <GradientStop Color="#40FFFFFF" Offset="0"/>
+    <GradientStop Color="#00FFFFFF" Offset="1"/>
 </LinearGradientBrush>
-<DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.12"/>
+<!-- inner subtle glow to suggest depth -->
+<DropShadowEffect x:Key="GlassInnerGlow" Color="#000000" BlurRadius="10" ShadowDepth="0" Opacity="0.06"/>
+<!-- outer shadow -->
+<DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="14" ShadowDepth="2" Opacity="0.12"/>
+
+<!-- Entrance scale (iOS-like) -->
+<Storyboard x:Key="ScaleInAnimation">
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)" From="0.985" To="1" Duration="0:0:0.28">
+<DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+</DoubleAnimation>
+<DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)" From="0.985" To="1" Duration="0:0:0.28">
+<DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+</DoubleAnimation>
+</Storyboard>
+
+<!-- Item hover animation (subtle lift + shadow) -->
+<Storyboard x:Key="ItemHoverIn">
+<DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="-3" Duration="0:0:0.12" />
+<DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.14" Duration="0:0:0.12" />
+</Storyboard>
+<Storyboard x:Key="ItemHoverOut">
+<DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" To="0" Duration="0:0:0.12" />
+<DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)" To="0.06" Duration="0:0:0.12" />
+</Storyboard>
+
 </Window.Resources>
 
 <Grid x:Name="RootGrid" Opacity="0">
+    <Grid.RenderTransform>
+        <TransformGroup>
+            <ScaleTransform ScaleX="1" ScaleY="1"/>
+            <TranslateTransform X="60"/>
+        </TransformGroup>
+    </Grid.RenderTransform>
 <Grid.RenderTransform>
 <TranslateTransform X="60"/>
 </Grid.RenderTransform>
@@ -73,6 +92,8 @@ From="1" To="0" Duration="0:0:0.30"/>
         Margin="0"
         Background="{StaticResource GlassBackgroundBrush}"
         Effect="{StaticResource GlassShadowEffect}">
+        <!-- inner surface with slight inner glow -->
+        <Border CornerRadius="11" Margin="1" Background="Transparent" Effect="{StaticResource GlassInnerGlow}" IsHitTestVisible="False"/>
     <Grid Margin="16,10,16,12">
 <Grid.RowDefinitions>
 <RowDefinition Height="Auto"/>
@@ -133,7 +154,14 @@ VirtualizingStackPanel.VirtualizationMode="Recycling">
 <Border CornerRadius="8"
 Background="#18000000"
 Padding="10,7"
-Margin="0,3">
+Margin="0,3"
+RenderTransformOrigin="0.5,0.5">
+    <Border.RenderTransform>
+        <TranslateTransform Y="0"/>
+    </Border.RenderTransform>
+    <Border.Effect>
+        <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="0" Opacity="0.06"/>
+    </Border.Effect>
 <StackPanel>
 <TextBlock Text="{Binding Title}"
 Foreground="{StaticResource GlassTextBrush}"

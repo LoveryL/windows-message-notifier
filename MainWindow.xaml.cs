@@ -138,6 +138,8 @@ namespace Notifier
         {
             if (Resources["SlideInAnimation"] is Storyboard sb)
                 sb.Begin();
+n            if (Resources["ScaleInAnimation"] is Storyboard ss)
+                ss.Begin();
         }
 
         private void PlaySlideOutAnimationAndHide()

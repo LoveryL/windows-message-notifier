@@ -42,6 +42,8 @@ namespace Notifier
                     ReportFocusState?.Invoke(true);
                 };
                 sb.Begin(this);
+                if (Resources["ScaleInAnimation"] is Storyboard ss)
+                    ss.Begin(this);
             }
             else
             {

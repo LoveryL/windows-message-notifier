@@ -30,6 +30,17 @@
             <GradientStop Color="#0FFFFFFF" Offset="1"/>
         </LinearGradientBrush>
         <DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.12"/>
+        <DropShadowEffect x:Key="GlassInnerGlow" Color="#000000" BlurRadius="10" ShadowDepth="0" Opacity="0.06"/>
+
+        <!-- Entrance scale -->
+        <Storyboard x:Key="ScaleInAnimation">
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)" From="0.985" To="1" Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)" From="0.985" To="1" Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
 
         <Storyboard x:Key="SlideInAnimation">
             <DoubleAnimation Storyboard.TargetName="RootGrid"
@@ -179,7 +190,10 @@
     <!-- ==================== 主体 UI ==================== -->
     <Grid x:Name="RootGrid" Opacity="0">
         <Grid.RenderTransform>
-            <TranslateTransform X="-420"/>
+            <TransformGroup>
+                <ScaleTransform ScaleX="1" ScaleY="1"/>
+                <TranslateTransform X="-420"/>
+            </TransformGroup>
         </Grid.RenderTransform>
 
         <Border CornerRadius="14"
