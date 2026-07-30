@@ -15,6 +15,18 @@
         SnapsToDevicePixels="True">
 
     <Window.Resources>
+    <!-- Liquid glass resources -->
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
+    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#40FFFFFF" Offset="0"/>
+        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
+        <GradientStop Color="#10FFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
+    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
+    </Style>
         <!-- ==================== 动画 ==================== -->
         <Storyboard x:Key="SlideInAnimation">
             <DoubleAnimation Storyboard.TargetName="RootGrid"
@@ -168,9 +180,9 @@
         </Grid.RenderTransform>
 
         <Border CornerRadius="14"
-                Background="#EFF6F6F6"
-                BorderBrush="#22000000"
-                BorderThickness="1">
+                Background="{StaticResource LiquidGlassBackground}"
+                BorderBrush="{StaticResource GlassBorderBrush}"
+                BorderThickness="1" Effect="{StaticResource GlassShadow}" CacheMode="BitmapCache">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -179,8 +191,8 @@
                 </Grid.RowDefinitions>
 
                 <!-- 标题栏 -->
-                <Border Grid.Row="0" Background="#E2E2E2" CornerRadius="14,14,0,0" Padding="14,10">
-                    <TextBlock Text="控制中心" FontWeight="SemiBold" FontSize="13" Foreground="#222"/>
+                <Border Grid.Row="0" Background="{StaticResource LiquidGlassBackground}" CornerRadius="14,14,0,0" Padding="14,10">
+                    <TextBlock Text="控制中心" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource LiquidGlassForeground}"/>
                 </Border>
 
                 <!-- 中间：音量与亮度 -->
@@ -209,7 +221,7 @@
                 </StackPanel>
 
                 <!-- 底部：媒体控制 + 歌曲信息 -->
-                <Border Grid.Row="2" Background="#E2E2E2" CornerRadius="0,0,14,14" Padding="0,12,0,14">
+                <Border Grid.Row="2" Background="{StaticResource LiquidGlassBackground}" CornerRadius="0,0,14,14" Padding="0,12,0,14">
                     <StackPanel>
                         <!-- 新增：歌曲名称与作者 -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
@@ -217,7 +229,7 @@
                                        Text="未在播放" 
                                        FontSize="12" 
                                        FontWeight="SemiBold" 
-                                       Foreground="#444"
+                                       Foreground="{StaticResource LiquidGlassForeground}"
                                        VerticalAlignment="Center"/>
                             <TextBlock Text=" — " 
                                        FontSize="11" 
@@ -227,7 +239,7 @@
                             <TextBlock x:Name="SongArtist" 
                                        Text="未知艺术家" 
                                        FontSize="11" 
-                                       Foreground="#777"
+                                       Foreground="{StaticResource LiquidGlassForeground}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
 

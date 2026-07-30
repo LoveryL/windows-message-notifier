@@ -16,6 +16,18 @@
         SnapsToDevicePixels="True">
 
     <Window.Resources>
+    <!-- Liquid glass resources -->
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
+    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#40FFFFFF" Offset="0"/>
+        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
+        <GradientStop Color="#10FFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
+    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
+    </Style>
         <!-- 入场 -->
         <Storyboard x:Key="SlideInAnimation">
             <DoubleAnimation
@@ -55,9 +67,11 @@
         </Grid.RenderTransform>
 
         <Border CornerRadius="14"
-                Background="#EFF6F6F6"
-                BorderBrush="#22000000"
-                BorderThickness="1">
+                Background="{StaticResource LiquidGlassBackground}"
+                BorderBrush="{StaticResource GlassBorderBrush}"
+                BorderThickness="1"
+                Effect="{StaticResource GlassShadow}"
+                CacheMode="BitmapCache">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -66,12 +80,12 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0"
-                        Background="#E2E2E2"
+                                        Background="{StaticResource LiquidGlassBackground}"
                         CornerRadius="14,14,0,0"
                         Padding="14,10">
                     <TextBlock Text="📢 未读通知"
                                FontWeight="SemiBold" FontSize="13"
-                               Foreground="#222" VerticalAlignment="Center"/>
+                               Foreground="{StaticResource LiquidGlassForeground}" VerticalAlignment="Center"/>
                 </Border>
 
                 <!-- 消息列表 -->
@@ -147,7 +161,7 @@
 
                 <!-- 底部 -->
                 <Border Grid.Row="2"
-                        Background="#E2E2E2"
+                        Background="{StaticResource LiquidGlassBackground}"
                         CornerRadius="0,0,14,14"
                         Padding="12,8">
                     <Grid>
@@ -158,7 +172,7 @@
                         <TextBlock x:Name="StatusText"
                                    Grid.Column="0"
                                    FontSize="11"
-                                   Foreground="#777"
+                                   Foreground="{StaticResource LiquidGlassForeground}"
                                    VerticalAlignment="Center"/>
                         <Button x:Name="ClearButton"
                                 Grid.Column="1"

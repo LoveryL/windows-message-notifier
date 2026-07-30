@@ -15,6 +15,18 @@ ShowInTaskbar="False"
 Visibility="Hidden">
 
 <Window.Resources>
+    <!-- Liquid glass resources -->
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
+    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#40FFFFFF" Offset="0"/>
+        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
+        <GradientStop Color="#10FFFFFF" Offset="1"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
+    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
+    </Style>
 <Storyboard x:Key="SlideInAnimation">
 <DoubleAnimation 
 Storyboard.TargetName="RootGrid" 
@@ -52,11 +64,13 @@ From="1" To="0" Duration="0:0:0.30"/>
 </Grid.RenderTransform>
 
 <Border CornerRadius="12"
-Background="#E8F2F2F2"
-BorderBrush="#25000000"
-BorderThickness="0.5"
+Background="{StaticResource LiquidGlassBackground}"
+BorderBrush="{StaticResource GlassBorderBrush}"
+BorderThickness="1"
 Padding="0"
-Margin="0">
+Margin="0"
+Effect="{StaticResource GlassShadow}"
+CacheMode="BitmapCache">
 <Grid Margin="16,10,16,12">
 <Grid.RowDefinitions>
 <RowDefinition Height="Auto"/>
@@ -76,13 +90,13 @@ VerticalAlignment="Center"
 Margin="0,0,6,0"/>
 <TextBlock Grid.Column="1"
 Text="通知"
-Foreground="#88000000"
+Foreground="{StaticResource LiquidGlassForeground}"
 FontSize="11"
 FontWeight="SemiBold"
 VerticalAlignment="Center"/>
 <TextBlock Grid.Column="2"
 x:Name="TimeStampText"
-Foreground="#55000000"
+Foreground="{StaticResource LiquidGlassForeground}"
 FontSize="10"
 VerticalAlignment="Center"/>
 </Grid>
