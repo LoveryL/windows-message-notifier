@@ -47,6 +47,21 @@
                 Storyboard.TargetProperty="Opacity"
                 From="1" To="0" Duration="0:0:0.25"/>
         </Storyboard>
+
+        <!-- Liquid glass resources -->
+        <SolidColorBrush x:Key="GlassTextBrush" Color="#FF1C1C1E"/>
+        <SolidColorBrush x:Key="GlassSecondaryTextBrush" Color="#77000000"/>
+        <LinearGradientBrush x:Key="GlassBackgroundBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#CCFFFFFF" Offset="0"/>
+            <GradientStop Color="#B3FFFFFF" Offset="0.5"/>
+            <GradientStop Color="#99FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#30FFFFFF"/>
+        <LinearGradientBrush x:Key="GlassHighlightBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#33FFFFFF" Offset="0"/>
+            <GradientStop Color="#0FFFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+        <DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.12"/>
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Opacity="0">
@@ -55,9 +70,10 @@
         </Grid.RenderTransform>
 
         <Border CornerRadius="14"
-                Background="#EFF6F6F6"
-                BorderBrush="#22000000"
-                BorderThickness="1">
+                Background="{StaticResource GlassBackgroundBrush}"
+                BorderBrush="{StaticResource GlassBorderBrush}"
+                BorderThickness="0.8"
+                Effect="{StaticResource GlassShadowEffect}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -66,12 +82,12 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0"
-                        Background="#E2E2E2"
+                        Background="Transparent"
                         CornerRadius="14,14,0,0"
                         Padding="14,10">
                     <TextBlock Text="📢 未读通知"
                                FontWeight="SemiBold" FontSize="13"
-                               Foreground="#222" VerticalAlignment="Center"/>
+                               Foreground="{StaticResource GlassTextBrush}" VerticalAlignment="Center"/>
                 </Border>
 
                 <!-- 消息列表 -->
@@ -100,7 +116,7 @@
                                         <!-- 标题行 -->
                                         <TextBlock Text="{Binding Title}"
                                                    FontWeight="SemiBold" FontSize="12"
-                                                   Foreground="#CC000000"
+                                                   Foreground="{StaticResource GlassTextBrush}"
                                                    TextWrapping="Wrap"/>
 
                                         <!-- 正文条目 -->
@@ -109,7 +125,7 @@
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding}"
                                                                FontSize="11"
-                                                               Foreground="#88000000"
+                                                               Foreground="{StaticResource GlassSecondaryTextBrush}"
                                                                Margin="14,2,0,2"
                                                                TextWrapping="Wrap"/>
                                                 </DataTemplate>
@@ -119,7 +135,7 @@
                                         <!-- 来源应用 -->
                                         <TextBlock Text="{Binding SourceApp}"
                                                    FontSize="9.5"
-                                                   Foreground="#777777"
+                                                   Foreground="{StaticResource GlassSecondaryTextBrush}"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,4,4,0"
                                                    TextTrimming="CharacterEllipsis">

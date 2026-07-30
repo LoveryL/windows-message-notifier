@@ -44,6 +44,21 @@ Storyboard.TargetName="RootGrid"
 Storyboard.TargetProperty="Opacity" 
 From="1" To="0" Duration="0:0:0.30"/>
 </Storyboard>
+
+<!-- Liquid glass resources (lightweight, no expensive blur) -->
+<SolidColorBrush x:Key="GlassTextBrush" Color="#FF1C1C1E"/>
+<SolidColorBrush x:Key="GlassSecondaryTextBrush" Color="#77000000"/>
+<LinearGradientBrush x:Key="GlassBackgroundBrush" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="#CCFFFFFF" Offset="0"/>
+    <GradientStop Color="#B3FFFFFF" Offset="0.5"/>
+    <GradientStop Color="#99FFFFFF" Offset="1"/>
+</LinearGradientBrush>
+<SolidColorBrush x:Key="GlassBorderBrush" Color="#30FFFFFF"/>
+<LinearGradientBrush x:Key="GlassHighlightBrush" StartPoint="0,0" EndPoint="1,1">
+    <GradientStop Color="#33FFFFFF" Offset="0"/>
+    <GradientStop Color="#0FFFFFFF" Offset="1"/>
+</LinearGradientBrush>
+<DropShadowEffect x:Key="GlassShadowEffect" Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.12"/>
 </Window.Resources>
 
 <Grid x:Name="RootGrid" Opacity="0">
@@ -52,12 +67,23 @@ From="1" To="0" Duration="0:0:0.30"/>
 </Grid.RenderTransform>
 
 <Border CornerRadius="12"
-Background="#E8F2F2F2"
-BorderBrush="#25000000"
-BorderThickness="0.5"
-Padding="0"
-Margin="0">
-<Grid Margin="16,10,16,12">
+        BorderBrush="{StaticResource GlassBorderBrush}"
+        BorderThickness="0.6"
+        Padding="0"
+        Margin="0"
+        Background="{StaticResource GlassBackgroundBrush}"
+        Effect="{StaticResource GlassShadowEffect}">
+    <Grid Margin="16,10,16,12">
+        <!-- subtle inner sheen -->
+        <Border CornerRadius="11" IsHitTestVisible="False" Margin="0" Background="Transparent">
+            <Border.Background>
+                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Top">
+                    <VisualBrush.Visual>
+                        <Rectangle Fill="{StaticResource GlassHighlightBrush}"/>
+                    </VisualBrush.Visual>
+                </VisualBrush>
+            </Border.Background>
+        </Border>
 <Grid.RowDefinitions>
 <RowDefinition Height="Auto"/>
 <RowDefinition Height="Auto"/>
@@ -76,7 +102,7 @@ VerticalAlignment="Center"
 Margin="0,0,6,0"/>
 <TextBlock Grid.Column="1"
 Text="通知"
-Foreground="#88000000"
+Foreground="{StaticResource GlassTextBrush}"
 FontSize="11"
 FontWeight="SemiBold"
 VerticalAlignment="Center"/>
@@ -109,7 +135,7 @@ Padding="10,7"
 Margin="0,3">
 <StackPanel>
 <TextBlock Text="{Binding Title}"
-Foreground="#DD000000"
+Foreground="{StaticResource GlassTextBrush}"
 FontSize="12"
 FontWeight="SemiBold"
 TextWrapping="Wrap"
@@ -121,7 +147,7 @@ IsHitTestVisible="False">
 <ItemsControl.ItemTemplate>
 <DataTemplate>
 <TextBlock Text="{Binding}"
-Foreground="#AA000000"
+Foreground="{StaticResource GlassSecondaryTextBrush}"
 FontSize="11"
 TextWrapping="Wrap"
 Margin="14,2,0,2"
