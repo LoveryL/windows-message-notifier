@@ -22,8 +22,11 @@ namespace Notifier
         private bool _summaryFocus;
         private bool _settingFocus;
 
-        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
         private const string AppName = "Notifier";
+
+        // Loaded configuration (from registry)
+        public static AppConfig Config { get; private set; } = new AppConfig();
 
         public static event Action<ToastData>? OnNewToastDetected;
 
@@ -32,11 +35,30 @@ namespace Notifier
             base.OnStartup(e);
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
+            // Load or create configuration stored in registry. On first run defaults are written.
+            Config = RegistryConfig.LoadOrCreateDefaults();
+
             InitializeNotifyIcon();
             _ = InitializeListenerAsync();
 
             // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
             // (Timer creation moved to InitializeListenerAsync.)
+
+            // If configuration indicates MainWindow should be shown at startup, create it now and apply stored properties.
+            if (Config.MainWindowShown)
+            {
+                _currentToastWindow = new MainWindow();
+                try
+                {
+                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow.Opacity = Config.MainWindowOpacity;
+                    if (!double.IsNaN(Config.MainWindowTop)) _currentToastWindow.Top = Config.MainWindowTop;
+                    if (!double.IsNaN(Config.MainWindowLeft)) _currentToastWindow.Left = Config.MainWindowLeft;
+                }
+                catch { }
+
+                _currentToastWindow.Show();
+                _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
+            }
         }
 
         #region 托盘

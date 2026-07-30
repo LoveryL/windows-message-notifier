@@ -46,6 +46,14 @@ namespace Notifier
             InitializeComponent();
             MessageList.ItemsSource = _messageGroups;
 
+            // Apply configured opacity if available (defaults preserved otherwise)
+            try
+            {
+                if (App.Config != null && !double.IsNaN(App.Config.MainWindowOpacity))
+                    Opacity = App.Config.MainWindowOpacity;
+            }
+            catch { }
+
             Loaded += (_, __) => PositionWindow();
 
             SourceInitialized += (_, __) =>
@@ -188,6 +196,18 @@ namespace Notifier
             UpdateLayout();
             Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Arrange(new Rect(new Point(0, 0), DesiredSize));
+
+            // If a saved position exists in configuration, honor it.
+            try
+            {
+                if (App.Config != null && !double.IsNaN(App.Config.MainWindowTop) && !double.IsNaN(App.Config.MainWindowLeft))
+                {
+                    Top = App.Config.MainWindowTop;
+                    Left = App.Config.MainWindowLeft;
+                    return;
+                }
+            }
+            catch { }
 
             double w = ActualWidth > 0 ? ActualWidth : 280;
             double h = ActualHeight > 0 ? ActualHeight : 130;
