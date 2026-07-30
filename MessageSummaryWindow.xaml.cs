@@ -20,7 +20,10 @@ namespace Notifier
         public MessageSummaryWindow()
         {
             InitializeComponent();
-            Loaded += OnFirstLoaded;
+
+            // Apply configured opacity if available
+            try { if (App.Config != null && !double.IsNaN(App.Config.MessageSummaryOpacity)) Opacity = App.Config.MessageSummaryOpacity; } catch { }
+n            Loaded += OnFirstLoaded;
             App.OnNewToastDetected += OnNewToast;
             RefreshMessages();
         }
