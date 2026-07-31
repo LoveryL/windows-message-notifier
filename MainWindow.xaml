@@ -15,47 +15,11 @@ ShowInTaskbar="False"
 Visibility="Hidden">
 
 <Window.Resources>
-    <!-- Liquid glass resources -->
-    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
-    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#40FFFFFF" Offset="0"/>
-        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
-        <GradientStop Color="#10FFFFFF" Offset="1"/>
-    </LinearGradientBrush>
-    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
-    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
-    <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
-    </Style>
-<Storyboard x:Key="SlideInAnimation">
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
-From="80" To="0" Duration="0:0:0.25">
-<DoubleAnimation.EasingFunction>
-<CubicEase EasingMode="EaseOut"/>
-</DoubleAnimation.EasingFunction>
-</DoubleAnimation>
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="Opacity" 
-From="0" To="1" Duration="0:0:0.25"/>
-</Storyboard>
-
-<Storyboard x:Key="SlideOutAnimation">
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="RenderTransform.(TranslateTransform.X)" 
-From="0" To="80" Duration="0:0:0.35">
-<DoubleAnimation.EasingFunction>
-<CubicEase EasingMode="EaseIn"/>
-</DoubleAnimation.EasingFunction>
-</DoubleAnimation>
-<DoubleAnimation 
-Storyboard.TargetName="RootGrid" 
-Storyboard.TargetProperty="Opacity" 
-From="1" To="0" Duration="0:0:0.30"/>
-</Storyboard>
+    <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="ThemeResources.xaml"/>
+        </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
 </Window.Resources>
 
 <Grid x:Name="RootGrid" Opacity="0">
@@ -85,19 +49,19 @@ CacheMode="BitmapCache">
 </Grid.ColumnDefinitions>
 <TextBlock Grid.Column="0"
 Text="🔔"
-FontSize="13"
+FontSize="{StaticResource FontSizeTitle}"
 VerticalAlignment="Center"
 Margin="0,0,6,0"/>
 <TextBlock Grid.Column="1"
 Text="通知"
 Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="11"
+FontSize="{StaticResource FontSizeBody}"
 FontWeight="SemiBold"
 VerticalAlignment="Center"/>
 <TextBlock Grid.Column="2"
 x:Name="TimeStampText"
 Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="10"
+FontSize="{StaticResource FontSizeCaption}"
 VerticalAlignment="Center"/>
 </Grid>
 
@@ -124,7 +88,7 @@ Margin="0,3">
 <StackPanel>
 <TextBlock Text="{Binding Title}"
 Foreground="#DD000000"
-FontSize="12"
+FontSize="{StaticResource FontSizeTitle}"
 FontWeight="SemiBold"
 TextWrapping="Wrap"
 Margin="0,0,0,5"
@@ -136,7 +100,7 @@ IsHitTestVisible="False">
 <DataTemplate>
 <TextBlock Text="{Binding}"
 Foreground="#AA000000"
-FontSize="11"
+FontSize="{StaticResource FontSizeBody}"
 TextWrapping="Wrap"
 Margin="14,2,0,2"
 HorizontalAlignment="Left"/>

@@ -16,49 +16,11 @@
         SnapsToDevicePixels="True">
 
     <Window.Resources>
-    <!-- Liquid glass resources -->
-    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
-    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#40FFFFFF" Offset="0"/>
-        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
-        <GradientStop Color="#10FFFFFF" Offset="1"/>
-    </LinearGradientBrush>
-    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
-    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
-    <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
-    </Style>
-        <!-- 入场 -->
-        <Storyboard x:Key="SlideInAnimation">
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                From="-420" To="0" Duration="0:0:0.28">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="Opacity"
-                From="0" To="1" Duration="0:0:0.2"/>
-        </Storyboard>
-
-        <!-- 退场 -->
-        <Storyboard x:Key="SlideOutAnimation">
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                To="-420" Duration="0:0:0.28">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="Opacity"
-                From="1" To="0" Duration="0:0:0.25"/>
-        </Storyboard>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ThemeResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Opacity="0">
@@ -84,7 +46,7 @@
                         CornerRadius="14,14,0,0"
                         Padding="14,10">
                     <TextBlock Text="📢 未读通知"
-                               FontWeight="SemiBold" FontSize="13"
+                               FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}"
                                Foreground="{StaticResource LiquidGlassForeground}" VerticalAlignment="Center"/>
                 </Border>
 
@@ -113,7 +75,7 @@
                                     <StackPanel>
                                         <!-- 标题行 -->
                                         <TextBlock Text="{Binding Title}"
-                                                   FontWeight="SemiBold" FontSize="12"
+                                                   FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}"
                                                    Foreground="#CC000000"
                                                    TextWrapping="Wrap"/>
 
@@ -122,7 +84,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding}"
-                                                               FontSize="11"
+                                                               FontSize="{StaticResource FontSizeBody}"
                                                                Foreground="#88000000"
                                                                Margin="14,2,0,2"
                                                                TextWrapping="Wrap"/>
@@ -132,7 +94,7 @@
 
                                         <!-- 来源应用 -->
                                         <TextBlock Text="{Binding SourceApp}"
-                                                   FontSize="9.5"
+                                                   FontSize="{StaticResource FontSizeCaption}"
                                                    Foreground="#777777"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,4,4,0"
@@ -171,7 +133,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="StatusText"
                                    Grid.Column="0"
-                                   FontSize="11"
+                                   FontSize="{StaticResource FontSizeBody}"
                                    Foreground="{StaticResource LiquidGlassForeground}"
                                    VerticalAlignment="Center"/>
                         <Button x:Name="ClearButton"
@@ -181,7 +143,7 @@
                                 Background="#D32F2F"
                                 Foreground="White"
                                 BorderThickness="0"
-                                FontSize="11"
+                                FontSize="{StaticResource FontSizeBody}"
                                 Padding="10,5"
                                 Cursor="Hand"/>
                     </Grid>
