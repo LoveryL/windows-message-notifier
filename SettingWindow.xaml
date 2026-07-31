@@ -98,7 +98,7 @@
                             <Button x:Name="BtnPrevious"
                                     Style="{StaticResource CircleMediaBtn}"
                                     ToolTip="上一首">
-                                <Path Data="{StaticResource IconPrev}" Style="{StaticResource IconPathStyle}" Width="18" Height="18"/>
+                                <Path Data="{StaticResource IconPrev}" Style="{StaticResource ActionIconStyle}" Width="18" Height="18"/>
                             </Button>
 
                             <Button x:Name="BtnPlayPause"
@@ -109,7 +109,7 @@
                                     <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     <Path x:Name="PlayPausePlay" Data="{StaticResource IconPlay}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Path.Style>
-                                            <Style TargetType="Path" BasedOn="{StaticResource IconPathStyle}">
+                                            <Style TargetType="Path" BasedOn="{StaticResource ActionIconStyle}">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon}" Value="▶️">
@@ -121,7 +121,7 @@
                                     </Path>
                                     <Path x:Name="PlayPausePause" Data="{StaticResource IconPause}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Path.Style>
-                                            <Style TargetType="Path" BasedOn="{StaticResource IconPathStyle}">
+                                            <Style TargetType="Path" BasedOn="{StaticResource ActionIconStyle}">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon}" Value="⏸">
@@ -137,7 +137,7 @@
                             <Button x:Name="BtnNext"
                                     Style="{StaticResource CircleMediaBtn}"
                                     ToolTip="下一首">
-                                <Path Data="{StaticResource IconNext}" Style="{StaticResource IconPathStyle}" Width="18" Height="18"/>
+                                <Path Data="{StaticResource IconNext}" Style="{StaticResource ActionIconStyle}" Width="18" Height="18"/>
                             </Button>
                         </StackPanel>
                     </StackPanel>
