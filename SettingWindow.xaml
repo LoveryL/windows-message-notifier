@@ -42,7 +42,7 @@
 
                 <!-- 标题栏 -->
                 <Border Grid.Row="0" Background="{StaticResource LiquidGlassBackground}" CornerRadius="14,14,0,0" Padding="14,10">
-                    <TextBlock Text="控制中心" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource LiquidGlassForeground}"/>
+                    <TextBlock Text="控制中心" FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}" Foreground="{StaticResource LiquidGlassForeground}"/>
                 </Border>
 
                 <!-- 中间：音量与亮度 -->
@@ -50,7 +50,7 @@
                     <!-- 音量 -->
                     <DockPanel Margin="0,0,0,20">
                         <TextBlock Text="🔊" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="音量" FontSize="12" Foreground="#555" Width="34" VerticalAlignment="Center"/>
+                        <TextBlock Text="音量" FontSize="{StaticResource FontSizeBody}" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="VolumeSlider"
                                 Minimum="0" Maximum="100" Value="50"
                                 Template="{StaticResource VolumeSliderTemplate}"
@@ -61,7 +61,7 @@
                     <!-- 亮度 -->
                     <DockPanel>
                         <TextBlock Text="☀️" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBlock Text="亮度" FontSize="12" Foreground="#555" Width="34" VerticalAlignment="Center"/>
+                        <TextBlock Text="亮度" FontSize="{StaticResource FontSizeBody}" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="BrightnessSlider"
                                 Minimum="0" Maximum="100" Value="70"
                                 Template="{StaticResource BrightnessSliderTemplate}"
@@ -77,18 +77,18 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
                             <TextBlock x:Name="SongTitle" 
                                        Text="未在播放" 
-                                       FontSize="12" 
+                                       FontSize="{StaticResource FontSizeTitle}" 
                                        FontWeight="SemiBold" 
                                        Foreground="{StaticResource LiquidGlassForeground}"
                                        VerticalAlignment="Center"/>
                             <TextBlock Text=" — " 
-                                       FontSize="11" 
+                                       FontSize="{StaticResource FontSizeBody}" 
                                        Foreground="#888" 
                                        VerticalAlignment="Center"
                                        Margin="3,0"/>
                             <TextBlock x:Name="SongArtist" 
                                        Text="未知艺术家" 
-                                       FontSize="11" 
+                                       FontSize="{StaticResource FontSizeBody}" 
                                        Foreground="{StaticResource LiquidGlassForeground}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>

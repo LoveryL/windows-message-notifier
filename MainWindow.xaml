@@ -49,19 +49,19 @@ CacheMode="BitmapCache">
 </Grid.ColumnDefinitions>
 <TextBlock Grid.Column="0"
 Text="🔔"
-FontSize="13"
+FontSize="{StaticResource FontSizeTitle}"
 VerticalAlignment="Center"
 Margin="0,0,6,0"/>
 <TextBlock Grid.Column="1"
 Text="通知"
 Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="11"
+FontSize="{StaticResource FontSizeBody}"
 FontWeight="SemiBold"
 VerticalAlignment="Center"/>
 <TextBlock Grid.Column="2"
 x:Name="TimeStampText"
 Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="10"
+FontSize="{StaticResource FontSizeCaption}"
 VerticalAlignment="Center"/>
 </Grid>
 
@@ -88,7 +88,7 @@ Margin="0,3">
 <StackPanel>
 <TextBlock Text="{Binding Title}"
 Foreground="#DD000000"
-FontSize="12"
+FontSize="{StaticResource FontSizeTitle}"
 FontWeight="SemiBold"
 TextWrapping="Wrap"
 Margin="0,0,0,5"
@@ -100,7 +100,7 @@ IsHitTestVisible="False">
 <DataTemplate>
 <TextBlock Text="{Binding}"
 Foreground="#AA000000"
-FontSize="11"
+FontSize="{StaticResource FontSizeBody}"
 TextWrapping="Wrap"
 Margin="14,2,0,2"
 HorizontalAlignment="Left"/>

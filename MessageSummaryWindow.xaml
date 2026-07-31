@@ -46,7 +46,7 @@
                         CornerRadius="14,14,0,0"
                         Padding="14,10">
                     <TextBlock Text="📢 未读通知"
-                               FontWeight="SemiBold" FontSize="13"
+                               FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}"
                                Foreground="{StaticResource LiquidGlassForeground}" VerticalAlignment="Center"/>
                 </Border>
 
@@ -75,7 +75,7 @@
                                     <StackPanel>
                                         <!-- 标题行 -->
                                         <TextBlock Text="{Binding Title}"
-                                                   FontWeight="SemiBold" FontSize="12"
+                                                   FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}"
                                                    Foreground="#CC000000"
                                                    TextWrapping="Wrap"/>
 
@@ -84,7 +84,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding}"
-                                                               FontSize="11"
+                                                               FontSize="{StaticResource FontSizeBody}"
                                                                Foreground="#88000000"
                                                                Margin="14,2,0,2"
                                                                TextWrapping="Wrap"/>
@@ -94,7 +94,7 @@
 
                                         <!-- 来源应用 -->
                                         <TextBlock Text="{Binding SourceApp}"
-                                                   FontSize="9.5"
+                                                   FontSize="{StaticResource FontSizeCaption}"
                                                    Foreground="#777777"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,4,4,0"
@@ -133,7 +133,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="StatusText"
                                    Grid.Column="0"
-                                   FontSize="11"
+                                   FontSize="{StaticResource FontSizeBody}"
                                    Foreground="{StaticResource LiquidGlassForeground}"
                                    VerticalAlignment="Center"/>
                         <Button x:Name="ClearButton"
@@ -143,7 +143,7 @@
                                 Background="#D32F2F"
                                 Foreground="White"
                                 BorderThickness="0"
-                                FontSize="11"
+                                FontSize="{StaticResource FontSizeBody}"
                                 Padding="10,5"
                                 Cursor="Hand"/>
                     </Grid>
