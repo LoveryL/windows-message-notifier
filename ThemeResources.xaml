@@ -222,7 +222,7 @@
     <Geometry x:Key="IconPrev">M14,6 L14,18 L6,12 Z M18,6 L18,18 L16,18 L16,6 Z</Geometry>
     <Geometry x:Key="IconPlay">M6,5 L18,12 L6,19 Z</Geometry>
     <Geometry x:Key="IconPause">M7,5 H11 V19 H7 Z M13,5 H17 V19 H13 Z</Geometry>
-    <Geometry x:Key="IconNext">M4,6 L4,18 L12,12 Z M8,6 L8,18 L10,18 L10,6 Z</Geometry>
+    <Geometry x:Key="IconNext">M8,6 L8,18 L14,12 Z M16,6 L16,18 L18,18 L18,6 Z</Geometry>
 
     <Style x:Key="IconPathStyle" TargetType="Path">
         <Setter Property="Fill" Value="{StaticResource LiquidGlassForeground}"/>

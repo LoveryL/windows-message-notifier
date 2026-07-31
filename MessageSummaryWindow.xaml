@@ -45,8 +45,8 @@
                                         Background="{StaticResource LiquidGlassBackground}"
                         CornerRadius="14,14,0,0"
                         Padding="14,10">
-                    <StackPanel Orientation="Horizontal">
-                        <Path Data="{StaticResource IconAnnouncement}" Style="{StaticResource IconPathStyle}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource IconBell}" Style="{StaticResource ActionIconStyle}" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="未读通知" FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}" Foreground="{StaticResource LiquidGlassForeground}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
