@@ -173,4 +173,21 @@
         </Setter>
     </Style>
 
+
+    <!-- ==================== Icon Geometries ==================== -->
+    <Geometry x:Key="IconBell">M12,2 C9,2 7,4 7,7 L7,15 L5,17 L19,17 L17,15 L17,7 C17,4 15,2 12,2 Z M12,20 C13.1,20 14,19.1 14,18 L10,18 C10,19.1 10.9,20 12,20 Z</Geometry>
+    <Geometry x:Key="IconAnnouncement">M3,8 L7,8 L11,4 L11,20 L7,16 L3,16 Z</Geometry>
+    <Geometry x:Key="IconSpeaker">M3,9 L7,9 L11,5 L11,19 L7,15 L3,15 Z M15,8 C16.66,9.33 16.66,14.66 15,16</Geometry>
+    <Geometry x:Key="IconSun">M12,8 A4,4 0 1,0 12,16 A4,4 0 1,0 12,8 Z</Geometry>
+    <Geometry x:Key="IconPrev">M14,6 L14,18 L6,12 Z M18,6 L18,18 L16,18 L16,6 Z</Geometry>
+    <Geometry x:Key="IconPlay">M6,5 L18,12 L6,19 Z</Geometry>
+    <Geometry x:Key="IconNext">M6,6 L6,18 L14,12 Z M10,6 L10,18 L12,18 L12,6 Z</Geometry>
+
+    <Style x:Key="IconPathStyle" TargetType="Path">
+        <Setter Property="Fill" Value="{StaticResource LiquidGlassForeground}"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
+    </Style>
+
 </ResourceDictionary>
