@@ -16,49 +16,11 @@
         SnapsToDevicePixels="True">
 
     <Window.Resources>
-    <!-- Liquid glass resources -->
-    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
-    <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#40FFFFFF" Offset="0"/>
-        <GradientStop Color="#20FFFFFF" Offset="0.6"/>
-        <GradientStop Color="#10FFFFFF" Offset="1"/>
-    </LinearGradientBrush>
-    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
-    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
-    <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource LiquidGlassForeground}"/>
-    </Style>
-        <!-- 入场 -->
-        <Storyboard x:Key="SlideInAnimation">
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                From="-420" To="0" Duration="0:0:0.28">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="Opacity"
-                From="0" To="1" Duration="0:0:0.2"/>
-        </Storyboard>
-
-        <!-- 退场 -->
-        <Storyboard x:Key="SlideOutAnimation">
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                To="-420" Duration="0:0:0.28">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-            <DoubleAnimation
-                Storyboard.TargetName="RootGrid"
-                Storyboard.TargetProperty="Opacity"
-                From="1" To="0" Duration="0:0:0.25"/>
-        </Storyboard>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ThemeResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Opacity="0">
