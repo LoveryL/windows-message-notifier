@@ -105,7 +105,33 @@
                                     Style="{StaticResource CircleMediaBtn}"
                                     Margin="26,0"
                                     ToolTip="暂停 / 播放">
-                                <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20"/>
+                                <Grid Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Path x:Name="PlayPausePlay" Data="{StaticResource IconPlay}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Path.Style>
+                                            <Style TargetType="Path" BasedOn="{StaticResource IconPathStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon}" Value="▶️">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Path.Style>
+                                    </Path>
+                                    <Path x:Name="PlayPausePause" Data="{StaticResource IconPause}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Path.Style>
+                                            <Style TargetType="Path" BasedOn="{StaticResource IconPathStyle}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon}" Value="⏸">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Path.Style>
+                                    </Path>
+                                </Grid>
                             </Button>
 
                             <Button x:Name="BtnNext"

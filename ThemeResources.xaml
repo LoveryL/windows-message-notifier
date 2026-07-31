@@ -181,6 +181,7 @@
     <Geometry x:Key="IconSun">M12,8 A4,4 0 1,0 12,16 A4,4 0 1,0 12,8 Z</Geometry>
     <Geometry x:Key="IconPrev">M14,6 L14,18 L6,12 Z M18,6 L18,18 L16,18 L16,6 Z</Geometry>
     <Geometry x:Key="IconPlay">M6,5 L18,12 L6,19 Z</Geometry>
+    <Geometry x:Key="IconPause">M7,5 H11 V19 H7 Z M13,5 H17 V19 H13 Z</Geometry>
     <Geometry x:Key="IconNext">M6,6 L6,18 L14,12 Z M10,6 L10,18 L12,18 L12,6 Z</Geometry>
 
     <Style x:Key="IconPathStyle" TargetType="Path">
