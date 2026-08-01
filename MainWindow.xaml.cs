@@ -15,7 +15,27 @@ namespace Notifier
 {
     public partial class MainWindow : Window
     {
-        
+#region Effect
+        [DllImport("user32.dll")]
+        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct ACCENTPOLICY
+        {
+            public int nAccentState;
+            public int nFlags;
+            public int nColor;
+            public int nAnimationId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct WINCOMPATTRDATA
+        {
+            public int nAttribute;
+            public IntPtr pData;
+            public int ulDataSize;
+        }
+        #endregion
         #region Win32 无焦点置顶 & 鼠标穿透
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
@@ -39,27 +59,6 @@ namespace Notifier
         [DllImport("user32.dll")]
         private static extern IntPtr SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
             int X, int Y, int cx, int cy, uint uFlags);
-        #endregion
-        #region Effect
-        [DllImport("user32.dll")]
-        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct ACCENTPOLICY
-        {
-            public int nAccentState;
-            public int nFlags;
-            public int nColor;
-            public int nAnimationId;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct WINCOMPATTRDATA
-        {
-            public int nAttribute;
-            public IntPtr pData;
-            public int ulDataSize;
-        }
         #endregion
         private DispatcherTimer? _hideTimer;
         private ObservableCollection<ToastMessageGroup> _messageGroups = new();
@@ -310,7 +309,6 @@ namespace Notifier
                 SetWindowPos(hwnd, HWND_TOPMOST, (int)Math.Round(this.Left), (int)Math.Round(this.Top), (int)Math.Round(this.Width), (int)Math.Round(this.Height), SWP_NOACTIVATE);
             }
             catch { }
-
             // play fade-in (shortened duration handled in XAML resources)
             if (Resources["FadeInStoryboard"] is Storyboard fadeInExt)
                 fadeInExt.Begin(this);

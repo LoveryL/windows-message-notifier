@@ -37,58 +37,85 @@ Closing="Window_Closing">
     </Grid.RenderTransform>
 
     <Border x:Name="OuterBorder" CornerRadius="10"
-                Background="#99FFFFFF"
-                BorderBrush="{StaticResource GlassBorderBrush}"
-                BorderThickness="1"
-                Padding="8"
-                Margin="6"
-                Effect="{StaticResource GlassShadow}"
-                CacheMode="BitmapCache">
+            Background="#ACFFFFFF"
+            BorderBrush="{StaticResource GlassBorderBrush}"
+            BorderThickness="1"
+            Padding="8"
+            Margin="6"
+            Effect="{StaticResource GlassShadow}"
+            CacheMode="BitmapCache">
 
-        <!-- Single-item layout optimized for 375x75 -->
         <ItemsControl x:Name="MessageList" IsHitTestVisible="False">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Vertical"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Width="359" Height="59">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="34"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <!-- Icon -->
-                            <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                <Path Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}"/>
-                            </Viewbox>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <!-- 精确填满：Width=347, Height=47 -->
+                    <Grid Width="347" Height="47">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- Icon -->
+                        <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Path Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}"/>
+                        </Viewbox>
 
-                            <!-- Title + Body -->
-                            <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center" Margin="6,0">
-                                <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeTitle}" FontWeight="SemiBold" Foreground="{StaticResource LiquidGlassForeground}" TextTrimming="CharacterEllipsis"/>
-                                <ItemsControl ItemsSource="{Binding Bodies}" IsHitTestVisible="False">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" FontSize="{StaticResource FontSizeBody}" Foreground="#AA000000" TextTrimming="CharacterEllipsis"/>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-
-                            <!-- Timestamp at top-right, process name bottom-right (tail-aligned with leading ellipsis if too long) -->
-                            <Grid Grid.Column="2" Width="100" Margin="8,4,4,0" HorizontalAlignment="Right">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Text="{Binding Time, StringFormat='{}{0:t}'}" Foreground="{StaticResource LiquidGlassForeground}" FontSize="{StaticResource FontSizeCaption}" HorizontalAlignment="Right"/>
-                                <TextBlock Grid.Row="1" Text="{Binding ProcessName}" Foreground="#888888" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" FlowDirection="RightToLeft"/>
-                            </Grid>
+                        <!-- Title + Body -->
+                        <Grid Grid.Column="1" Margin="6,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" 
+                                       Text="{Binding Title}" 
+                                       FontSize="{StaticResource FontSizeTitle}" 
+                                       FontWeight="SemiBold" 
+                                       Foreground="{StaticResource LiquidGlassForeground}" 
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"/>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding Bodies}" IsHitTestVisible="False">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" 
+                                                   FontSize="{StaticResource FontSizeBody}" 
+                                                   Foreground="#AA000000" 
+                                                   TextTrimming="CharacterEllipsis"
+                                                   TextWrapping="NoWrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
+
+                        <!-- Timestamp + ProcessName -->
+                        <Grid Grid.Column="2" Width="85" Margin="8,4,4,0" HorizontalAlignment="Right">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" 
+                                       Text="{Binding Time, StringFormat='{}{0:t}'}" 
+                                       Foreground="{StaticResource LiquidGlassForeground}" 
+                                       FontSize="{StaticResource FontSizeCaption}" 
+                                       HorizontalAlignment="Right"/>
+                            <TextBlock Grid.Row="1" 
+                                       Text="{Binding ProcessName}" 
+                                       Foreground="#888888" 
+                                       FontSize="10" 
+                                       HorizontalAlignment="Right" 
+                                       VerticalAlignment="Bottom" 
+                                       Margin="0,2,0,0" 
+                                       TextTrimming="CharacterEllipsis" 
+                                       FlowDirection="RightToLeft"/>
+                        </Grid>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
         </ItemsControl>
 
     </Border>
