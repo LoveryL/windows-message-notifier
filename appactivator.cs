@@ -140,5 +140,46 @@ namespace Notifier
         }
 
         #endregion
+
+        // Fallback: try to find a running process by app name and bring its main window to foreground
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        private const int SW_RESTORE = 9;
+
+        public static (bool Success, string Message) TryBringToFrontByAppName(string appName)
+        {
+            if (string.IsNullOrWhiteSpace(appName))
+                return (false, "应用名为空，无法置前");
+            try
+            {
+                var procs = System.Diagnostics.Process.GetProcesses();
+                foreach (var p in procs)
+                {
+                    try
+                    {
+                        if (p.MainWindowHandle == IntPtr.Zero)
+                            continue;
+                        if ((!string.IsNullOrWhiteSpace(p.MainWindowTitle) && p.MainWindowTitle.IndexOf(appName, StringComparison.OrdinalIgnoreCase) >= 0)
+                            || p.ProcessName.IndexOf(appName, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            IntPtr h = p.MainWindowHandle;
+                            if (IsIconic(h)) ShowWindow(h, SW_RESTORE);
+                            SetForegroundWindow(h);
+                            return (true, $"已将进程 {p.ProcessName} 的窗口置前");
+                        }
+                    }
+                    catch { }
+                }
+                return (false, "未找到匹配的进程窗口");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"置前异常：{ex.Message}");
+            }
+        }
     }
 }

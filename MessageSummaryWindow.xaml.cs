@@ -189,7 +189,26 @@ namespace Notifier
             {
                 var (ok, msg) = await AppActivator.active_app(aumid);
                 if (!ok)
+                {
                     System.Diagnostics.Debug.WriteLine($"[AppActivator] 唤醒失败：{msg}");
+                    // fallback: try to bring a running process forward by app name
+                    if (!string.IsNullOrWhiteSpace(target?.AppName))
+                    {
+                        var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
+                        if (!ok2)
+                            System.Diagnostics.Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
+                    }
+                }
+            }
+            else
+            {
+                // 没有 AUMID 时也尝试按应用名置前
+                if (!string.IsNullOrWhiteSpace(target?.AppName))
+                {
+                    var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
+                    if (!ok2)
+                        System.Diagnostics.Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
+                }
             }
         }
 
