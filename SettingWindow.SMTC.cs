@@ -98,12 +98,13 @@ namespace Notifier
             switch (state)
             {
                 case PlaybackState.Playing:
-                    PlayPauseIcon.Text = "⏸";  // 暂停图标
+                    // Use plain unicode glyphs (no emoji variation selectors) to avoid colored/black-box rendering
+                    PlayPauseIcon.Text = "\u23F8";  // ⏸ pause symbol (monochrome)
                     break;
                 case PlaybackState.Paused:
                 case PlaybackState.Stopped:
                 default:
-                    PlayPauseIcon.Text = "▶️";  // 播放图标
+                    PlayPauseIcon.Text = "\u25B6";  // ▶ play symbol (monochrome)
                     break;
             }
         }

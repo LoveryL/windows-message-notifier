@@ -111,7 +111,7 @@
                                     Margin="26,0"
                                     ToolTip="暂停 / 播放">
                                 <Grid Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20" Visibility="Visible" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PlayPauseIcon" Text="\u23F8" FontSize="20" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     <Path x:Name="PlayPausePlay" Data="{StaticResource IconPlay}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
                                                           Visibility="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseToVisibilityConverter}, ConverterParameter=Play}">
                                                                                                                 <Path.Style>
