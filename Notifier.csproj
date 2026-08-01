@@ -9,18 +9,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <!-- Prevent generation of assembly attributes to avoid duplicates during XAML temporary builds -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <!-- Disable generation of specific assembly attributes the WPF XAML tasks sometimes emit multiple times -->
-    <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
-    <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
-    <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
-    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
-    <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
-    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
-    <GenerateTargetPlatformAttribute>false</GenerateTargetPlatformAttribute>
-    <GenerateSupportedOSPlatformAttribute>false</GenerateSupportedOSPlatformAttribute>
+    <!-- NOTE: keep GenerateAssemblyInfo=false only. Disabling many fine-grained assembly attribute generation is unnecessary and can cause tooling inconsistencies. -->
   </PropertyGroup>
 
   <ItemGroup>

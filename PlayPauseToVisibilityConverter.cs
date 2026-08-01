@@ -14,8 +14,8 @@ namespace Notifier
             var param = (parameter as string) ?? string.Empty;
             if (string.IsNullOrEmpty(param)) return Visibility.Collapsed;
 
-            bool isPlay = s.Contains('\u25B6') || s.Contains('▶') || s.IndexOf("play", StringComparison.OrdinalIgnoreCase) >= 0;
-            bool isPause = s.Contains('\u23F8') || s.Contains('⏸') || s.IndexOf("pause", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool isPlay = s.IndexOfAny(new[] {'\u25B6','▶','►'}) >= 0 || s.IndexOf("play", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool isPause = s.IndexOfAny(new[] {'\u23F8','⏸'}) >= 0 || s.IndexOf("pause", StringComparison.OrdinalIgnoreCase) >= 0;
 
             if (param.Equals("Play", StringComparison.OrdinalIgnoreCase) && isPlay) return Visibility.Visible;
             if (param.Equals("Pause", StringComparison.OrdinalIgnoreCase) && isPause) return Visibility.Visible;
