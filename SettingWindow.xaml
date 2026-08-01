@@ -1,6 +1,7 @@
 <Window x:Class="Notifier.SettingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Notifier"
         Title="控制中心"
         Width="370" Height="315"
         WindowStyle="None"
@@ -19,6 +20,10 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="ThemeResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Converters to normalize Play/Pause text coming from SMTC and map to Visibility -->
+            <local:PlayPauseTextToStateConverter x:Key="PlayPauseConverter"/>
+            <local:PlayPauseToVisibilityConverter x:Key="PlayPauseToVisibilityConverter"/>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -49,7 +54,7 @@
                 <StackPanel Grid.Row="1" Margin="22,20,22,10" VerticalAlignment="Center">
                     <!-- 音量 -->
                     <DockPanel Margin="0,0,0,20">
-                        <TextBlock Text="🔊" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Path Data="{StaticResource IconSpeaker}" Style="{StaticResource IconPathStyle}" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="音量" FontSize="{StaticResource FontSizeBody}" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="VolumeSlider"
                                 Minimum="0" Maximum="100" Value="50"
@@ -60,7 +65,7 @@
 
                     <!-- 亮度 -->
                     <DockPanel>
-                        <TextBlock Text="☀️" FontSize="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Path Data="{StaticResource IconSun}" Style="{StaticResource IconPathStyle}" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBlock Text="亮度" FontSize="{StaticResource FontSizeBody}" Foreground="#555" Width="34" VerticalAlignment="Center"/>
                         <Slider x:Name="BrightnessSlider"
                                 Minimum="0" Maximum="100" Value="70"
@@ -98,20 +103,48 @@
                             <Button x:Name="BtnPrevious"
                                     Style="{StaticResource CircleMediaBtn}"
                                     ToolTip="上一首">
-                                <TextBlock Text="⏮" FontSize="18"/>
+                                <Path Data="{StaticResource IconPrev}" Style="{StaticResource ActionIconStyle}" Width="18" Height="18"/>
                             </Button>
 
                             <Button x:Name="BtnPlayPause"
                                     Style="{StaticResource CircleMediaBtn}"
                                     Margin="26,0"
                                     ToolTip="暂停 / 播放">
-                                <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20"/>
+                                <Grid Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20" Visibility="Visible" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Path x:Name="PlayPausePlay" Data="{StaticResource IconPlay}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Visibility="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseToVisibilityConverter}, ConverterParameter=Play}">
+                                                                                                                <Path.Style>
+                                                                                <Style TargetType="Path" BasedOn="{StaticResource ActionIconStyle}">
+                                                                                                                                                                    <Setter Property="Opacity" Value="0.01"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseConverter}}" Value="Play">
+                                                                                                                                                                                    <Setter Property="Opacity" Value="1"/>
+                                                                                                                                                                                </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Path.Style>
+                                                                        </Path>
+                                    <Path x:Name="PlayPausePause" Data="{StaticResource IconPause}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Visibility="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseToVisibilityConverter}, ConverterParameter=Pause}">
+                                                                            <Path.Style>
+                                                                                <Style TargetType="Path" BasedOn="{StaticResource ActionIconStyle}">
+                                                                                                                                                                    <Setter Property="Opacity" Value="0.01"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseConverter}}" Value="Pause">
+                                                                                                                                                                                    <Setter Property="Opacity" Value="1"/>
+                                                                                                                                                                                </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Path.Style>
+                                                                        </Path>
+                                </Grid>
                             </Button>
 
                             <Button x:Name="BtnNext"
                                     Style="{StaticResource CircleMediaBtn}"
                                     ToolTip="下一首">
-                                <TextBlock Text="⏭" FontSize="18"/>
+                                <Path Data="{StaticResource IconNext}" Style="{StaticResource ActionIconStyle}" Width="18" Height="18"/>
                             </Button>
                         </StackPanel>
                     </StackPanel>

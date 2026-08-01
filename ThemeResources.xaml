@@ -146,7 +146,7 @@
         </Track>
     </ControlTemplate>
 
-    <!-- ==================== 圆形媒体按钮 ==================== -->
+    <!-- ==================== 圆形媒体按钮 (iOS-like micro-interaction) ==================== -->
     <Style x:Key="CircleMediaBtn" TargetType="Button">
         <Setter Property="Width" Value="48"/>
         <Setter Property="Height" Value="48"/>
@@ -157,20 +157,85 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="24">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="24" RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                        </Border.RenderTransform>
+                        <ContentPresenter x:Name="contentPresenter" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <!-- Hover: subtle scale up and slight darken -->
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#18000000"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.06" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.06" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="contentPresenter" Storyboard.TargetProperty="Opacity" To="0.92" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="contentPresenter" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
+
+                        <!-- Pressed: quick slight shrink for tactile feedback -->
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="#30000000"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="0.96" Duration="0:0:0.06" />
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="0.96" Duration="0:0:0.06" />
+                                        <DoubleAnimation Storyboard.TargetName="contentPresenter" Storyboard.TargetProperty="Opacity" To="0.8" Duration="0:0:0.06" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1.06" Duration="0:0:0.08" />
+                                        <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1.06" Duration="0:0:0.08" />
+                                        <DoubleAnimation Storyboard.TargetName="contentPresenter" Storyboard.TargetProperty="Opacity" To="0.92" Duration="0:0:0.08" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+
+    <!-- ==================== Icon Geometries ==================== -->
+    <Geometry x:Key="IconBell">M12,2 C9,2 7,4 7,7 L7,15 L5,17 L19,17 L17,15 L17,7 C17,4 15,2 12,2 Z M12,20 C13.1,20 14,19.1 14,18 L10,18 C10,19.1 10.9,20 12,20 Z</Geometry>
+    <Geometry x:Key="IconAnnouncement">M3,8 L7,8 L11,4 L11,20 L7,16 L3,16 Z</Geometry>
+    <Geometry x:Key="IconSpeaker">M3,9 L7,9 L11,5 L11,19 L7,15 L3,15 Z M15,8 C16.66,9.33 16.66,14.66 15,16</Geometry>
+    <Geometry x:Key="IconSun">M12,8 A4,4 0 1,0 12,16 A4,4 0 1,0 12,8 Z</Geometry>
+    <Geometry x:Key="IconPrev">M14,6 L14,18 L6,12 Z M18,6 L18,18 L16,18 L16,6 Z</Geometry>
+    <Geometry x:Key="IconPlay">M6,5 L18,12 L6,19 Z</Geometry>
+    <Geometry x:Key="IconPause">M7,5 H11 V19 H7 Z M13,5 H17 V19 H13 Z</Geometry>
+    <Geometry x:Key="IconNext">M8,6 L8,18 L14,12 Z M16,6 L16,18 L18,18 L18,6 Z</Geometry>
+
+    <Style x:Key="IconPathStyle" TargetType="Path">
+        <Setter Property="Fill" Value="{StaticResource LiquidGlassForeground}"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Opacity" Value="0.95"/>
+    </Style>
+
+    <Style x:Key="ActionIconStyle" TargetType="Path" BasedOn="{StaticResource IconPathStyle}">
+        <Setter Property="Fill" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Opacity" Value="1"/>
     </Style>
 
 </ResourceDictionary>

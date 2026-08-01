@@ -47,11 +47,7 @@ CacheMode="BitmapCache">
 <ColumnDefinition Width="*"/>
 <ColumnDefinition Width="Auto"/>
 </Grid.ColumnDefinitions>
-<TextBlock Grid.Column="0"
-Text="🔔"
-FontSize="{StaticResource FontSizeTitle}"
-VerticalAlignment="Center"
-Margin="0,0,6,0"/>
+<Path Grid.Column="0" Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
 <TextBlock Grid.Column="1"
 Text="通知"
 Foreground="{StaticResource LiquidGlassForeground}"
