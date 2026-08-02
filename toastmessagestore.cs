@@ -46,7 +46,7 @@ namespace Notifier
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"从通知中心删除通知失败: {ex.Message}");
+                    if(__Debug.Debug) Console.WriteLine($"从通知中心删除通知失败: {ex.Message}");
                 }
             }
         }
@@ -68,7 +68,7 @@ namespace Notifier
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"从通知中心删除通知失败: {ex.Message}");
+                            if(__Debug.Debug) Console.WriteLine($"从通知中心删除通知失败: {ex.Message}");
                         }
                     }
                 }

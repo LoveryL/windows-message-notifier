@@ -92,7 +92,7 @@
                                        VerticalAlignment="Center"
                                        Margin="3,0"/>
                             <TextBlock x:Name="SongArtist" 
-                                       Text="未知艺术家" 
+                                       Text="" 
                                        FontSize="{StaticResource FontSizeBody}" 
                                        Foreground="{StaticResource LiquidGlassForeground}"
                                        VerticalAlignment="Center"/>

@@ -10,6 +10,7 @@ namespace Notifier
     /// </summary>
     public partial class SettingWindow
     {
+        
         private SMTCController? _smtcController;
         private bool _smtcInitialized;
         private string _lastTitle = string.Empty;  // 记录上一次的标题，用于检测变化
@@ -35,11 +36,11 @@ namespace Notifier
                 TryUpdateMediaUI();
 
                 _smtcInitialized = true;
-                Console.WriteLine("SMTC 接入成功");
+                if(__Debug.Debug) Console.WriteLine("SMTC 接入成功");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"SMTC 初始化失败: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"SMTC 初始化失败: {ex.Message}");
                 // 静默失败，不影响主功能
             }
         }
@@ -52,6 +53,8 @@ namespace Notifier
             if (_smtcController == null || !_smtcController.HasActiveSession())
             {
                 // 没有活跃会话，保持默认文本
+                BtnPlayPause.ToolTip = "暂无在播放的音频";
+                PlayPauseIcon.Text = "\u25B6";
                 return;
             }
 
@@ -70,7 +73,7 @@ namespace Notifier
                         _lastTitle = mediaInfo.Title;
                         SongTitle.Text = mediaInfo.Title;
                         SongArtist.Text = string.IsNullOrEmpty(mediaInfo.Artist) ? "未知艺术家" : mediaInfo.Artist;
-                        Console.WriteLine($"歌曲切换: {mediaInfo.Title} - {mediaInfo.Artist}");
+                        if(__Debug.Debug) Console.WriteLine($"歌曲切换: {mediaInfo.Title} - {mediaInfo.Artist}");
                     }
                     else if (string.IsNullOrEmpty(mediaInfo.Title))
                     {
@@ -86,7 +89,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"更新媒体 UI 失败: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"更新媒体 UI 失败: {ex.Message}");
             }
         }
 
@@ -100,11 +103,13 @@ namespace Notifier
                 case PlaybackState.Playing:
                     // Use plain unicode glyphs (no emoji variation selectors) to avoid colored/black-box rendering
                     PlayPauseIcon.Text = "\u23F8";  // ⏸ pause symbol (monochrome)
+                    BtnPlayPause.ToolTip = "暂停";
                     break;
                 case PlaybackState.Paused:
                 case PlaybackState.Stopped:
                 default:
                     PlayPauseIcon.Text = "\u25B6";  // ▶ play symbol (monochrome)
+                    BtnPlayPause.ToolTip = "播放";
                     break;
             }
         }
@@ -144,7 +149,7 @@ namespace Notifier
                 {
                     _lastTitle = string.Empty;
                     SongTitle.Text = "未在播放";
-                    SongArtist.Text = "未知艺术家";
+                    SongArtist.Text = "";
                     PlayPauseIcon.Text = "▶️";
                 });
             }
@@ -168,7 +173,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"上一首操作失败: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"上一首操作失败: {ex.Message}");
             }
             finally
             {
@@ -190,7 +195,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"播放/暂停操作失败: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"播放/暂停操作失败: {ex.Message}");
             }
             finally
             {
@@ -216,7 +221,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"下一首操作失败: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"下一首操作失败: {ex.Message}");
             }
             finally
             {

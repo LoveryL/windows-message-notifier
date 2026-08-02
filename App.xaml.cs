@@ -8,6 +8,7 @@ using Microsoft.Win32;
 
 namespace Notifier
 {
+    
     public partial class App : WpfApp
     {
         private ToastNotificationListener? _listener;
@@ -165,7 +166,7 @@ namespace Notifier
             _summaryWindow?.RefreshMessages();
 
             var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
-                ? $"{toast.Title}：{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
+                ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
             AddMessage(text);
         }
 

@@ -6,11 +6,13 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Windows.Media.Animation;
+using System.Diagnostics;
 
 namespace Notifier
 {
     public partial class MainWindow : Window
     {
+        
         #region Win32 无焦点置顶 & 鼠标穿透
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;

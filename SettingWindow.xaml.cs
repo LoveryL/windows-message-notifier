@@ -47,7 +47,7 @@ namespace Notifier
                 else
                 {
                     int sim = _settings.GetSimulatedBrightness();
-                    brightnessPercent = sim >= 0 ? sim : 70; // 默认 70%
+                    brightnessPercent = sim >= 0 ? sim : 100;
                 }
 
                 BrightnessSlider.Value = Math.Clamp(brightnessPercent, 0, 100);
@@ -62,8 +62,9 @@ namespace Notifier
         #region 入场
         private void OnFirstLoaded(object? sender, RoutedEventArgs e)
         {
-            Dispatcher.BeginInvoke(new Action(PositionWindow),
-                System.Windows.Threading.DispatcherPriority.Background);
+            PositionWindow();
+            //Dispatcher.BeginInvoke(new Action(PositionWindow),
+            //    System.Windows.Threading.DispatcherPriority.Background);
 
             VolumeSlider.ValueChanged += OnVolumeChanged;
             BrightnessSlider.ValueChanged += OnBrightnessChanged;

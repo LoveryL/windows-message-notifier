@@ -167,7 +167,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"ClearNotifications error: {ex.Message}");
+                if(__Debug.Debug) Console.WriteLine($"ClearNotifications error: {ex.Message}");
             }
         }
 
@@ -181,7 +181,7 @@ namespace Notifier
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"删除通知失败: {ex.Message}");
+                    if(__Debug.Debug) Console.WriteLine($"删除通知失败: {ex.Message}");
                 }
             }
         }
