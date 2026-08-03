@@ -46,7 +46,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- 标题栏 -->
-                <Border Grid.Row="0" Background="{StaticResource LiquidGlassBackground}" CornerRadius="14,14,0,0" Padding="14,10">
+                <Border Grid.Row="0" CornerRadius="14,14,0,0" Padding="14,10">
                     <TextBlock Text="控制中心" FontWeight="SemiBold" FontSize="{StaticResource FontSizeTitle}" Foreground="{StaticResource LiquidGlassForeground}"/>
                 </Border>
 
@@ -76,26 +76,21 @@
                 </StackPanel>
 
                 <!-- 底部：媒体控制 + 歌曲信息 -->
-                <Border Grid.Row="2" Background="{StaticResource LiquidGlassBackground}" CornerRadius="0,0,14,14" Padding="0,12,0,14">
+                <Border Grid.Row="2" CornerRadius="0,0,14,14" Padding="0,12,0,14">
                     <StackPanel>
                         <!-- 新增：歌曲名称与作者 -->
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                        <StackPanel HorizontalAlignment="Center" Margin="0,0,0,10">
                             <TextBlock x:Name="SongTitle" 
-                                       Text="未在播放" 
-                                       FontSize="{StaticResource FontSizeTitle}" 
-                                       FontWeight="SemiBold" 
-                                       Foreground="{StaticResource LiquidGlassForeground}"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Text=" — " 
-                                       FontSize="{StaticResource FontSizeBody}" 
-                                       Foreground="#888" 
-                                       VerticalAlignment="Center"
-                                       Margin="3,0"/>
+               Text="未在播放" 
+               FontSize="{StaticResource FontSizeTitle}" 
+               FontWeight="SemiBold" 
+               Foreground="{StaticResource LiquidGlassForeground}"
+               HorizontalAlignment="Center"/>
                             <TextBlock x:Name="SongArtist" 
-                                       Text="" 
-                                       FontSize="{StaticResource FontSizeBody}" 
-                                       Foreground="{StaticResource LiquidGlassForeground}"
-                                       VerticalAlignment="Center"/>
+               Text="" 
+               FontSize="{StaticResource FontSizeBody}" 
+               Foreground="{StaticResource LiquidGlassForeground}"
+               HorizontalAlignment="Center"/>
                         </StackPanel>
 
                         <!-- 原有的媒体控制按钮 -->

@@ -6,7 +6,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Windows.Media.Animation;
-using System.Diagnostics;
+
 
 namespace Notifier
 {
@@ -37,7 +37,27 @@ namespace Notifier
         private static extern IntPtr SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
             int X, int Y, int cx, int cy, uint uFlags);
         #endregion
+        #region Effect
+        [DllImport("user32.dll")]
+        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
 
+        [StructLayout(LayoutKind.Sequential)]
+        struct ACCENTPOLICY
+        {
+            public int nAccentState;
+            public int nFlags;
+            public int nColor;
+            public int nAnimationId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct WINCOMPATTRDATA
+        {
+            public int nAttribute;
+            public IntPtr pData;
+            public int ulDataSize;
+        }
+        #endregion
 
         private DispatcherTimer? _hideTimer;
         private ObservableCollection<ToastMessageGroup> _messageGroups = new();
@@ -56,8 +76,11 @@ namespace Notifier
             }
             catch { }
 
-            Loaded += (_, __) => PositionWindow();
-
+            Loaded += (s, e) =>
+            {
+                PositionWindow();
+                
+            };
             SourceInitialized += (_, __) =>
             {
                 IntPtr hwnd = new WindowInteropHelper(this).Handle;
@@ -140,6 +163,12 @@ namespace Notifier
         {
             if (Resources["SlideInAnimation"] is Storyboard sb)
                 sb.Begin();
+            var hwnd = new WindowInteropHelper(this).Handle;
+            var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
+            var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
+            Marshal.StructureToPtr(accent, data.pData, false);
+            SetWindowCompositionAttribute(hwnd, ref data);
+            Marshal.FreeHGlobal(data.pData);
         }
 
         private void PlaySlideOutAnimationAndHide()

@@ -22,20 +22,20 @@ Visibility="Hidden">
     </ResourceDictionary>
 </Window.Resources>
 
-<Grid x:Name="RootGrid" Opacity="0">
-<Grid.RenderTransform>
-<TranslateTransform X="60"/>
-</Grid.RenderTransform>
-
-<Border CornerRadius="12"
-Background="{StaticResource LiquidGlassBackground}"
+<Grid x:Name="RootGrid" Opacity="2">
+        <Grid.RenderTransform>
+            <TranslateTransform X="60"/>
+        </Grid.RenderTransform>
+        <Border CornerRadius="12"
+Background="#99FFFFFF"
 BorderBrush="{StaticResource GlassBorderBrush}"
 BorderThickness="1"
 Padding="0"
 Margin="0"
 Effect="{StaticResource GlassShadow}"
 CacheMode="BitmapCache">
-<Grid Margin="16,10,16,12">
+            
+                <Grid Margin="16,10,16,12">
 <Grid.RowDefinitions>
 <RowDefinition Height="Auto"/>
 <RowDefinition Height="Auto"/>
@@ -65,7 +65,7 @@ VerticalAlignment="Center"/>
 MaxHeight="350"
 VerticalScrollBarVisibility="Auto"
 HorizontalScrollBarVisibility="Disabled"
-CanContentScroll="True">
+CanContentScroll="False">
 <ItemsControl x:Name="MessageList"
 IsHitTestVisible="False"
 VirtualizingStackPanel.IsVirtualizing="True"
@@ -78,7 +78,7 @@ VirtualizingStackPanel.VirtualizationMode="Recycling">
 <ItemsControl.ItemTemplate>
 <DataTemplate>
 <Border CornerRadius="8"
-Background="#18000000"
+Background="#00000000"
 Padding="10,7"
 Margin="0,3">
 <StackPanel>

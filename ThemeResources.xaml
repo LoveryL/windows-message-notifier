@@ -6,7 +6,7 @@
     <!-- Shared theme resources extracted from windows -->
 
     <!-- Colors / Brushes -->
-    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#CCFFFFFF"/>
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#67FFFFFF"/>
     <LinearGradientBrush x:Key="GlassBorderBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#40FFFFFF" Offset="0"/>
         <GradientStop Color="#20FFFFFF" Offset="0.6"/>
@@ -15,10 +15,13 @@
     <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E"/>
 
     <!-- Accent color (iOS-like) -->
-    <SolidColorBrush x:Key="AccentBrush" Color="#007AFF"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#000000"/>
 
     <!-- Shadow -->
-    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.16" BlurRadius="12" ShadowDepth="0"/>
+    <DropShadowEffect x:Key="GlassShadow" Color="#000000" Opacity="0.25" BlurRadius="24" ShadowDepth="0"/>
+    <BlurEffect x:Key="BackgroundBlur" 
+            Radius="20" 
+            KernelType="Gaussian"/>
 
     <!-- Typography -->
     <FontFamily x:Key="AppFontFamily">Segoe UI Variable, Segoe UI, "Microsoft YaHei", sans-serif</FontFamily>

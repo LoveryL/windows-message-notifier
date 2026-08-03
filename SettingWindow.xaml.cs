@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace Notifier
 {
@@ -15,6 +18,27 @@ namespace Notifier
         private readonly SystemSettingsManager _settings = new();
         private bool _isInitializing;
 
+        #region Effect
+        [DllImport("user32.dll")]
+        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct ACCENTPOLICY
+        {
+            public int nAccentState;
+            public int nFlags;
+            public int nColor;
+            public int nAnimationId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct WINCOMPATTRDATA
+        {
+            public int nAttribute;
+            public IntPtr pData;
+            public int ulDataSize;
+        }
+        #endregion
         public SettingWindow()
         {
             InitializeComponent();
@@ -63,15 +87,20 @@ namespace Notifier
         private void OnFirstLoaded(object? sender, RoutedEventArgs e)
         {
             PositionWindow();
-            //Dispatcher.BeginInvoke(new Action(PositionWindow),
-            //    System.Windows.Threading.DispatcherPriority.Background);
 
             VolumeSlider.ValueChanged += OnVolumeChanged;
             BrightnessSlider.ValueChanged += OnBrightnessChanged;
 
             if (Resources["SlideInAnimation"] is Storyboard sb)
             {
-                sb.Completed += (_, __) => _allowDeactivate = true;
+                sb.Completed += (_, __) => { _allowDeactivate = true; 
+                    var hwnd = new WindowInteropHelper(this).Handle;
+                    var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
+                    var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
+                    Marshal.StructureToPtr(accent, data.pData, false);
+                    SetWindowCompositionAttribute(hwnd, ref data);
+                    Marshal.FreeHGlobal(data.pData);
+                };
                 sb.Begin(this);
             }
             else _allowDeactivate = true;
@@ -85,6 +114,7 @@ namespace Notifier
             BtnNext.Click += OnNextClicked;
 
             Show();
+            
         }
         #endregion
 

@@ -79,7 +79,7 @@ namespace Notifier
                     {
                         // 标题为空时恢复默认
                         _lastTitle = string.Empty;
-                        SongTitle.Text = "未在播放";
+                        SongTitle.Text = "未在标题";
                         SongArtist.Text = "未知艺术家";
                     }
 
@@ -105,8 +105,8 @@ namespace Notifier
                     PlayPauseIcon.Text = "\u23F8";  // ⏸ pause symbol (monochrome)
                     BtnPlayPause.ToolTip = "暂停";
                     break;
-                case PlaybackState.Paused:
-                case PlaybackState.Stopped:
+                //case PlaybackState.Paused:
+                //case PlaybackState.Stopped:
                 default:
                     PlayPauseIcon.Text = "\u25B6";  // ▶ play symbol (monochrome)
                     BtnPlayPause.ToolTip = "播放";
@@ -149,8 +149,8 @@ namespace Notifier
                 {
                     _lastTitle = string.Empty;
                     SongTitle.Text = "未在播放";
-                    SongArtist.Text = "";
-                    PlayPauseIcon.Text = "▶️";
+                    SongArtist.Text = "未在播放";
+                    PlayPauseIcon.Text = "\u25B6";
                 });
             }
         }
