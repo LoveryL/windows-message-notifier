@@ -33,9 +33,9 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 | 📋 **消息汇总面板** | 点击系统托盘图标可打开消息汇总窗口，集中查看所有捕获的通知 | Click the tray icon to open a summary window that lists all captured notifications |
 | 🧲 **系统托盘常驻** | 最小化到系统托盘运行，不占用任务栏空间，支持右键菜单操作 | Runs in the system tray with context menu support (auto-start toggle, exit) |
 | 🔄 **开机自启** | 支持通过注册表配置开机自启，一键开关 | One-click toggle for auto-start via Windows Registry |
-| 🧹 **通知管理** | 支持按标题批量清除通知，也可逐条删除并同步清除系统通知中心中的记录 | Clear notifications by title or remove individual items with sync to the system notification center |
+| ✨ **通知管理** | 支持按标题批量清除通知，也可逐条删除并同步清除系统通知中心中的记录 | Clear notifications by title or remove individual items with sync to the system notification center |
 | 🚫 **智能过滤** | 自动过滤来自微信等特定应用的通知，避免重复捕获 | Automatically filters out notifications from specific apps like WeChat |
-
+| 🧹 **极致性能** |文件大小仅26mb,在i3-4130,HD4400,4G RAM,Windows 10 21H2 IoT企业版LTSC运行环境下平均CPU占用<1%，内存占用<70mb，GPU占用为0（连续运行24h），当不停人为刷新UI达到CPU占用25%，GPU占用26%峰值
 ---
 
 ## 🏗 项目结构 | Project Structure
