@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Notifier
@@ -167,7 +168,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"ClearNotifications error: {ex.Message}");
+                Debug.WriteLine($"ClearNotifications error: {ex.Message}");
             }
         }
 
@@ -181,7 +182,7 @@ namespace Notifier
                 }
                 catch (Exception ex)
                 {
-                    if(__Debug.Debug) Console.WriteLine($"删除通知失败: {ex.Message}");
+                    Debug.WriteLine($"删除通知失败: {ex.Message}");
                 }
             }
         }

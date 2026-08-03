@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 namespace Notifier
 {
@@ -46,7 +47,7 @@ namespace Notifier
                 }
                 catch (Exception ex)
                 {
-                    if(__Debug.Debug) Console.WriteLine($"从通知中心删除通知失败: {ex.Message}");
+                    Debug.WriteLine($"从通知中心删除通知失败: {ex.Message}");
                 }
             }
         }
@@ -68,7 +69,7 @@ namespace Notifier
                         }
                         catch (Exception ex)
                         {
-                            if(__Debug.Debug) Console.WriteLine($"从通知中心删除通知失败: {ex.Message}");
+                            Debug.WriteLine($"从通知中心删除通知失败: {ex.Message}");
                         }
                     }
                 }

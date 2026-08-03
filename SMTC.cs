@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.Media.Control;
+using System.Diagnostics;
 
 namespace Notifier
 {
@@ -105,7 +106,7 @@ namespace Notifier
                 _sessionManager.SessionsChanged += SessionManager_SessionsChanged;
 
                 _initialized = true;
-                if(__Debug.Debug) Console.WriteLine("SMTC initialized successfully!");
+                Debug.WriteLine("SMTC initialized successfully!");
             }
             catch (Exception ex)
             {
@@ -385,12 +386,12 @@ namespace Notifier
                     _currentSession.PlaybackInfoChanged += CurrentSession_PlaybackInfoChanged;
                     _currentSession.MediaPropertiesChanged += CurrentSession_MediaPropertiesChanged;
                     OnSessionChanged?.Invoke(true);
-                    if(__Debug.Debug) Console.WriteLine("Media session detected!");
+                    Debug.WriteLine("Media session detected!");
                 }
                 else
                 {
                     OnSessionChanged?.Invoke(false);
-                    if(__Debug.Debug) Console.WriteLine("No media session available");
+                    Debug.WriteLine("No media session available");
                 }
             }
         }

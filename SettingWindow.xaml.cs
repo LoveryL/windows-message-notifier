@@ -42,7 +42,7 @@ namespace Notifier
         public SettingWindow()
         {
             InitializeComponent();
-
+            PlayPauseIcon.Text = "\u25B6";
             // Apply configured opacity if available
             try { if (App.Config != null && !double.IsNaN(App.Config.SettingWindowOpacity)) Opacity = App.Config.SettingWindowOpacity; } catch { }
 
@@ -104,7 +104,6 @@ namespace Notifier
                 sb.Begin(this);
             }
             else _allowDeactivate = true;
-
             // ========== [新增] SMTC 初始化 ==========
             InitializeSMTC();
 

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -36,11 +37,13 @@ namespace Notifier
                 TryUpdateMediaUI();
 
                 _smtcInitialized = true;
-                if(__Debug.Debug) Console.WriteLine("SMTC 接入成功");
+                
+                Debug.WriteLine("SMTC 接入成功");
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"SMTC 初始化失败: {ex.Message}");
+                BtnPlayPause.ToolTip = "SMTC 初始化失败: {ex.Message}";
+                Debug.WriteLine($"SMTC 初始化失败: {ex.Message}");
                 // 静默失败，不影响主功能
             }
         }
@@ -73,7 +76,7 @@ namespace Notifier
                         _lastTitle = mediaInfo.Title;
                         SongTitle.Text = mediaInfo.Title;
                         SongArtist.Text = string.IsNullOrEmpty(mediaInfo.Artist) ? "未知艺术家" : mediaInfo.Artist;
-                        if(__Debug.Debug) Console.WriteLine($"歌曲切换: {mediaInfo.Title} - {mediaInfo.Artist}");
+                        Debug.WriteLine($"歌曲切换: {mediaInfo.Title} - {mediaInfo.Artist}");
                     }
                     else if (string.IsNullOrEmpty(mediaInfo.Title))
                     {
@@ -89,7 +92,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"更新媒体 UI 失败: {ex.Message}");
+                Debug.WriteLine($"更新媒体 UI 失败: {ex.Message}");
             }
         }
 
@@ -112,6 +115,7 @@ namespace Notifier
                     BtnPlayPause.ToolTip = "播放";
                     break;
             }
+
         }
 
         /// <summary>
@@ -121,12 +125,7 @@ namespace Notifier
         {
             Dispatcher.Invoke(() =>
             {
-                UpdatePlayPauseIcon(state);
                 
-                // ===== 关键修复：播放状态变化时也更新媒体信息 =====
-                // 歌曲切换时，SMTC 会先触发 PlaybackStateChanged（短暂变为 Changing），
-                // 然后触发 MediaPropertiesChanged。但 SMTC.cs 没有暴露后者，
-                // 所以我们在这里主动刷新媒体信息。
                 Dispatcher.BeginInvoke(new Action(() => TryUpdateMediaUI()),
                     System.Windows.Threading.DispatcherPriority.Background);
             });
@@ -149,7 +148,7 @@ namespace Notifier
                 {
                     _lastTitle = string.Empty;
                     SongTitle.Text = "未在播放";
-                    SongArtist.Text = "未在播放";
+                    SongArtist.Text = "";
                     PlayPauseIcon.Text = "\u25B6";
                 });
             }
@@ -173,7 +172,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"上一首操作失败: {ex.Message}");
+                Debug.WriteLine($"上一首操作失败: {ex.Message}");
             }
             finally
             {
@@ -195,7 +194,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"播放/暂停操作失败: {ex.Message}");
+                Debug.WriteLine($"播放/暂停操作失败: {ex.Message}");
             }
             finally
             {
@@ -221,7 +220,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                if(__Debug.Debug) Console.WriteLine($"下一首操作失败: {ex.Message}");
+                Debug.WriteLine($"下一首操作失败: {ex.Message}");
             }
             finally
             {
