@@ -7,6 +7,8 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Windows.Media.Animation;
+using System.Windows.Media;
+using System.Windows.Controls;
 
 
 namespace Notifier
@@ -68,7 +70,8 @@ namespace Notifier
         private DispatcherTimer _displayTimer;
                 private bool _isDisplaying = false;
 
-        private record QueuedMessage(DateTime Time, string Title, string Body);
+        private record QueuedMessage(DateTime Time, string Title, string Body, string ProcessName);
+
 
         public MainWindow()
         {
@@ -101,7 +104,7 @@ namespace Notifier
         }
 
         #region 公开接口
-        public void AddMessage(string text)
+        public void AddMessage(string text, string processName = "")
         {
             // ensure enqueue and UI operations run on UI thread
             Dispatcher.Invoke(() =>
@@ -110,7 +113,7 @@ namespace Notifier
                 var t = string.IsNullOrWhiteSpace(title) ? "新通知" : title;
                 var b = string.IsNullOrWhiteSpace(body) ? "" : body;
 
-                _messageQueue.Add(new QueuedMessage(DateTime.Now, t, b));
+                _messageQueue.Add(new QueuedMessage(DateTime.Now, t, b, processName ?? ""));
                 _messageQueue.Sort((a, c) => a.Time.CompareTo(c.Time));
 
                 if (!_isDisplaying)
@@ -212,7 +215,7 @@ namespace Notifier
             var head = _messageQueue.FirstOrDefault();
             if (head != null)
             {
-                var group = new ToastMessageGroup { Title = head.Title };
+                var group = new ToastMessageGroup { Title = head.Title, ProcessName = head.ProcessName, Time = head.Time };
                 if (!string.IsNullOrEmpty(head.Body))
                     group.Bodies.Add(head.Body);
                 _messageGroups.Add(group);
@@ -289,6 +292,45 @@ namespace Notifier
         #endregion
 
         // New handlers for fade behaviour (wired from XAML)
+        private void Window_Loaded_Extended(object sender, RoutedEventArgs e)
+        {
+            // enforce fixed size and position precisely (fix actual window size mismatch)
+            this.SizeToContent = SizeToContent.Manual;
+            this.Width = 375;
+            this.Height = 75;
+
+            // position and ensure top-most no-activate behavior
+            PositionWindow();
+            ShowNoActivateTopmost();
+
+            // ensure OS-level window size matches exactly (use SetWindowPos)
+            try
+            {
+                var hwnd = new WindowInteropHelper(this).EnsureHandle();
+                SetWindowPos(hwnd, HWND_TOPMOST, (int)Math.Round(this.Left), (int)Math.Round(this.Top), (int)Math.Round(this.Width), (int)Math.Round(this.Height), SWP_NOACTIVATE);
+            }
+            catch { }
+
+            // play fade-in (shortened duration handled in XAML resources)
+            if (Resources["FadeInStoryboard"] is Storyboard fadeInExt)
+                fadeInExt.Begin(this);
+
+            // clip children to rounded corners to avoid square overlays covering corners
+            try
+            {
+                var outer = this.FindName("OuterBorder") as Border;
+                if (outer != null)
+                {
+                    void updateClip(object? s, EventArgs ea)
+                    {
+                        outer.Clip = new RectangleGeometry(new Rect(0, 0, outer.ActualWidth, outer.ActualHeight), outer.CornerRadius.TopLeft, outer.CornerRadius.TopLeft);
+                    }
+                    outer.SizeChanged += (s, e) => updateClip(s, e);
+                    updateClip(null, EventArgs.Empty);
+                }
+            }
+            catch { }
+        }
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // position and ensure top-most no-activate behavior

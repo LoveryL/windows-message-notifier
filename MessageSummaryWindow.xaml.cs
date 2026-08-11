@@ -288,5 +288,9 @@ namespace Notifier
         /// </summary>
         public string SourceApp { get; set; } = "";
         public string? SampleAumid { get; set; }
+        // optional process identifier for compact displays
+        public string ProcessName { get; set; } = "";
+        // timestamp for display (used by compact toast template)
+        public DateTime Time { get; set; } = DateTime.Now;
     }
 }

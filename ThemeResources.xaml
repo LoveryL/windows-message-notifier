@@ -40,27 +40,27 @@
     <Storyboard x:Key="SlideInAnimation">
         <DoubleAnimation Storyboard.TargetName="RootGrid"
                          Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                         From="-420" To="0" Duration="0:0:0.28">
+                         From="-420" To="0" Duration="0:0:0.12">
             <DoubleAnimation.EasingFunction>
                 <BackEase Amplitude="0.28" EasingMode="EaseOut"/>
             </DoubleAnimation.EasingFunction>
         </DoubleAnimation>
         <DoubleAnimation Storyboard.TargetName="RootGrid"
                          Storyboard.TargetProperty="Opacity"
-                         From="0" To="1" Duration="0:0:0.2"/>
+                         From="0" To="1" Duration="0:0:0.12"/>
     </Storyboard>
 
     <Storyboard x:Key="SlideOutAnimation">
         <DoubleAnimation Storyboard.TargetName="RootGrid"
                          Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                         To="-420" Duration="0:0:0.28">
+                         To="-420" Duration="0:0:0.12">
             <DoubleAnimation.EasingFunction>
                 <BackEase Amplitude="0.22" EasingMode="EaseIn"/>
             </DoubleAnimation.EasingFunction>
         </DoubleAnimation>
         <DoubleAnimation Storyboard.TargetName="RootGrid"
                          Storyboard.TargetProperty="Opacity"
-                         From="1" To="0" Duration="0:0:0.25"/>
+                         From="1" To="0" Duration="0:0:0.12"/>
     </Storyboard>
 
     <!-- ==================== 控件样式（Slider / Buttons） ==================== -->

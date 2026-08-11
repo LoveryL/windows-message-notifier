@@ -11,7 +11,7 @@ ResizeMode="NoResize"
 WindowStartupLocation="Manual"
 ShowInTaskbar="False"
 Visibility="Hidden"
-Loaded="Window_Loaded"
+Loaded="Window_Loaded_Extended"
 Closing="Window_Closing">
 
 <Window.Resources>
@@ -22,10 +22,10 @@ Closing="Window_Closing">
 
         <!-- Fade in/out storyboards for minimal animation changes -->
         <Storyboard x:Key="FadeInStoryboard">
-            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25"/>
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.12"/>
         </Storyboard>
         <Storyboard x:Key="FadeOutStoryboard">
-            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:0.25"/>
+            <DoubleAnimation Storyboard.TargetName="RootGrid" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:0.12"/>
         </Storyboard>
 
     </ResourceDictionary>
@@ -36,89 +36,61 @@ Closing="Window_Closing">
         <TranslateTransform X="0"/>
     </Grid.RenderTransform>
 
-    <Border CornerRadius="12"
-            Background="{StaticResource LiquidGlassBackground}"
-            BorderBrush="{StaticResource GlassBorderBrush}"
-            BorderThickness="1"
-            Padding="0"
-            Margin="0"
-            Effect="{StaticResource GlassShadow}"
-            CacheMode="BitmapCache">
-<Grid Margin="12,6,12,6">
-<Grid.RowDefinitions>
-<RowDefinition Height="Auto"/>
-<RowDefinition Height="Auto"/>
-</Grid.RowDefinitions>
+    <Border x:Name="OuterBorder" CornerRadius="10"
+                Background="#99FFFFFF"
+                BorderBrush="{StaticResource GlassBorderBrush}"
+                BorderThickness="1"
+                Padding="8"
+                Margin="6"
+                Effect="{StaticResource GlassShadow}"
+                CacheMode="BitmapCache">
 
-<Grid Grid.Row="0" Margin="0,0,0,6">
-<Grid.ColumnDefinitions>
-<ColumnDefinition Width="Auto"/>
-<ColumnDefinition Width="*"/>
-<ColumnDefinition Width="Auto"/>
-</Grid.ColumnDefinitions>
-<Path Grid.Column="0" Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
-<TextBlock Grid.Column="1"
-Text="通知"
-Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="{StaticResource FontSizeBody}"
-FontWeight="SemiBold"
-VerticalAlignment="Center"/>
-<TextBlock Grid.Column="2"
-x:Name="TimeStampText"
-Foreground="{StaticResource LiquidGlassForeground}"
-FontSize="{StaticResource FontSizeCaption}"
-VerticalAlignment="Center"/>
-</Grid>
+        <!-- Single-item layout optimized for 375x75 -->
+        <ItemsControl x:Name="MessageList" IsHitTestVisible="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Width="359" Height="59">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="34"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- Icon -->
+                            <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}"/>
+                            </Viewbox>
 
-<ScrollViewer Grid.Row="1"
-MaxHeight="40"
-VerticalScrollBarVisibility="Disabled"
-HorizontalScrollBarVisibility="Disabled"
-CanContentScroll="False">
-<ItemsControl x:Name="MessageList"
-IsHitTestVisible="False"
-VirtualizingStackPanel.IsVirtualizing="True"
-VirtualizingStackPanel.VirtualizationMode="Recycling">
-    <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-            <VirtualizingStackPanel/>
-        </ItemsPanelTemplate>
-    </ItemsControl.ItemsPanel>
-<ItemsControl.ItemTemplate>
-<DataTemplate>
-<Border CornerRadius="8"
-Background="#18000000"
-                            Padding="8,4"
-                            Margin="0,2">
-<StackPanel>
-<TextBlock Text="{Binding Title}"
-Foreground="#DD000000"
-FontSize="{StaticResource FontSizeTitle}"
-FontWeight="SemiBold"
-TextWrapping="Wrap"
-Margin="0,0,0,5"
-HorizontalAlignment="Left"/>
+                            <!-- Title + Body -->
+                            <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center" Margin="6,0">
+                                <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeTitle}" FontWeight="SemiBold" Foreground="{StaticResource LiquidGlassForeground}" TextTrimming="CharacterEllipsis"/>
+                                <ItemsControl ItemsSource="{Binding Bodies}" IsHitTestVisible="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" FontSize="{StaticResource FontSizeBody}" Foreground="#AA000000" TextTrimming="CharacterEllipsis"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
 
-<ItemsControl ItemsSource="{Binding Bodies}"
-IsHitTestVisible="False">
-<ItemsControl.ItemTemplate>
-<DataTemplate>
-<TextBlock Text="{Binding}"
-Foreground="#AA000000"
-FontSize="{StaticResource FontSizeBody}"
-TextWrapping="Wrap"
-Margin="14,2,0,2"
-HorizontalAlignment="Left"/>
-</DataTemplate>
-</ItemsControl.ItemTemplate>
-</ItemsControl>
-</StackPanel>
-</Border>
-</DataTemplate>
-</ItemsControl.ItemTemplate>
-</ItemsControl>
-</ScrollViewer>
-</Grid>
-</Border>
+                            <!-- Timestamp at top-right, process name bottom-right (tail-aligned with leading ellipsis if too long) -->
+                            <Grid Grid.Column="2" Width="100" Margin="8,4,4,0" HorizontalAlignment="Right">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="{Binding Time, StringFormat='{}{0:t}'}" Foreground="{StaticResource LiquidGlassForeground}" FontSize="{StaticResource FontSizeCaption}" HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Row="1" Text="{Binding ProcessName}" Foreground="#888888" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" FlowDirection="RightToLeft"/>
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+    </Border>
 </Grid>
 </Window>

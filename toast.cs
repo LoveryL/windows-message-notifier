@@ -137,7 +137,9 @@ namespace Notifier
                     Body = body,
                     Aumid = aumid,
                     InternalNotification = notification,
-                    NotificationId = notification.Id
+                    NotificationId = notification.Id,
+                    // best-effort process identifier: prefer AppUserModelId, fall back to display name
+                    ProcessName = appInfo?.AppUserModelId ?? appName
                 };
             }
             catch
@@ -196,6 +198,8 @@ namespace Notifier
         public string Aumid { get; set; } = "";
         public uint NotificationId { get; set; }
         public UserNotification? InternalNotification { get; set; }
+        // best-effort process name for display
+        public string ProcessName { get; set; } = "";
     }
     
     public class ToastMessage

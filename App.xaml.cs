@@ -167,7 +167,13 @@ namespace Notifier
 
             var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
                 ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
-            AddMessage(text);
+            // pass along best-effort process identifier for bottom-right display
+            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
+            {
+                _currentToastWindow = new MainWindow();
+                _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
+            }
+            _currentToastWindow.AddMessage(text, toast.ProcessName);
         }
 
         public void OnMessagesHaveBeenCleared()
@@ -175,14 +181,14 @@ namespace Notifier
             if (ToastMessageStore.UnreadCount <= 0) SetNormalIcon();
         }
 
-        private void AddMessage(string text)
+        private void AddMessage(string text, string processName = "")
         {
             if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
             {
                 _currentToastWindow = new MainWindow();
                 _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
             }
-            _currentToastWindow.AddMessage(text);
+            _currentToastWindow.AddMessage(text, processName);
         }
         #endregion
 
