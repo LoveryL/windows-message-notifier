@@ -2,6 +2,7 @@
 using WpfApp = System.Windows.Application;
 
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -31,6 +32,151 @@ namespace Notifier
 
         public static event Action<ToastData>? OnNewToastDetected;
 
+        // Ensure main toast window exists and attach app-level handlers
+        private void EnsureMainWindow()
+        {
+            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
+            {
+                _currentToastWindow = new MainWindow();
+                AttachMainWindowHandlers(_currentToastWindow);
+                _currentToastWindow.Closed += (_, __) =>
+                {
+                    try { if (_currentToastWindow != null) DetachMainWindowHandlers(_currentToastWindow); } catch { }
+                    _currentToastWindow = null;
+                };
+            }
+        }
+
+        private void AttachMainWindowHandlers(MainWindow w)
+        {
+            try
+            {
+                w.PreviewMouseRightButtonDown -= MainWindow_PreviewMouseRightButtonDown;
+                w.PreviewMouseRightButtonDown += MainWindow_PreviewMouseRightButtonDown;
+
+                // middle button for app activation from toast (use PreviewMouseDown and check ChangedButton)
+                w.PreviewMouseDown -= MainWindow_PreviewMouseDown;
+                w.PreviewMouseDown += MainWindow_PreviewMouseDown;
+            }
+            catch { }
+        }
+
+        private void DetachMainWindowHandlers(MainWindow w)
+        {
+            try
+            {
+                w.PreviewMouseRightButtonDown -= MainWindow_PreviewMouseRightButtonDown;
+                w.PreviewMouseDown -= MainWindow_PreviewMouseDown;
+            }
+            catch { }
+        }
+
+        private void MainWindow_PreviewMouseRightButtonDown(object? sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try
+            {
+                if (e.ChangedButton != System.Windows.Input.MouseButton.Right) return;
+                bool ctrl = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl) || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
+                if (!ctrl) return;
+                ShowPanelsFromApp();
+                e.Handled = true;
+            }
+            catch { }
+        }
+
+        // Ctrl + middle click: attempt to wake the app that sent the current toast, then advance to next message
+        private async void MainWindow_PreviewMouseDown(object? sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try
+            {
+                if (e.ChangedButton != System.Windows.Input.MouseButton.Middle) return;
+                bool ctrl = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl) || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
+                if (!ctrl) return;
+
+                if (_currentToastWindow == null) return;
+                var title = _currentToastWindow.GetCurrentHeadTitle();
+                if (string.IsNullOrWhiteSpace(title)) return;
+
+                // find the toast matching the displayed title
+                var target = ToastMessageStore.GetAll().FirstOrDefault(m => string.Equals(
+                    string.IsNullOrWhiteSpace(m.Title) ? "新通知" : m.Title,
+                    title, StringComparison.Ordinal));
+
+                if (target != null)
+                {
+                    // mimic MessageSummaryWindow: remove from store first, refresh UI, notify app
+                    try
+                    {
+                        ToastMessageStore.RemoveByTitleAndSync(title);
+                        _summaryWindow?.RefreshMessages();
+                        ((App)Application.Current).OnMessagesHaveBeenCleared();
+                    }
+                    catch { }
+
+                    bool success = false;
+                    string msg = "";
+                    if (!string.IsNullOrWhiteSpace(target.Aumid))
+                    {
+                        var res = await AppActivator.active_app(target.Aumid);
+                        success = res.Success;
+                        msg = res.Message;
+                        System.Diagnostics.Debug.WriteLine($"[AppActivator] 唤醒结果: Success={success}, Msg={msg}");
+                    }
+
+                    if (!success)
+                    {
+                        if (!string.IsNullOrWhiteSpace(target.AppName))
+                        {
+                            var res2 = AppActivator.TryBringToFrontByAppName(target.AppName);
+                            success = res2.Success;
+                            msg = res2.Message;
+                            System.Diagnostics.Debug.WriteLine($"[AppActivator] 置前结果: Success={success}, Msg={msg}");
+                        }
+                    }
+                }
+
+                // regardless of success, instruct main window to skip current message and show next
+                try { _currentToastWindow.SkipCurrentMessage(); } catch { }
+
+                e.Handled = true;
+            }
+            catch { }
+        }
+
+        private void ShowPanelsFromApp()
+        {
+            if (_summaryWindow?.IsLoaded == true)
+            {
+                _summaryWindow.RefreshMessages();
+                _summaryWindow.Activate();
+                _settingWindow?.Activate();
+                return;
+            }
+
+            _summaryFocus = false;
+            _settingFocus = false;
+
+            _settingWindow = new SettingWindow();
+            _summaryWindow = new MessageSummaryWindow();
+
+            _summaryWindow.ReportFocusState += f =>
+            {
+                _summaryFocus = f;
+                TryDismissPanel();
+            };
+            _settingWindow.ReportFocusState += f =>
+            {
+                _settingFocus = f;
+                TryDismissPanel();
+            };
+
+            _summaryWindow.WindowClosed += PanelCleanup;
+            _settingWindow.WindowClosed += PanelCleanup;
+
+            _summaryWindow.Show();
+            _settingWindow.Show();
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -48,17 +194,16 @@ namespace Notifier
             // If configuration indicates MainWindow should be shown at startup, create it now and apply stored properties.
             if (Config.MainWindowShown)
             {
-                _currentToastWindow = new MainWindow();
+                EnsureMainWindow();
                 try
                 {
-                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow.Opacity = Config.MainWindowOpacity;
-                    if (!double.IsNaN(Config.MainWindowTop)) _currentToastWindow.Top = Config.MainWindowTop;
-                    if (!double.IsNaN(Config.MainWindowLeft)) _currentToastWindow.Left = Config.MainWindowLeft;
+                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow!.Opacity = Config.MainWindowOpacity;
+                    if (!double.IsNaN(Config.MainWindowTop)) _currentToastWindow!.Top = Config.MainWindowTop;
+                    if (!double.IsNaN(Config.MainWindowLeft)) _currentToastWindow!.Left = Config.MainWindowLeft;
                 }
                 catch { }
 
-                _currentToastWindow.Show();
-                _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
+                _currentToastWindow!.Show();
             }
         }
 
@@ -168,12 +313,8 @@ namespace Notifier
             var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
                 ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
             // pass along best-effort process identifier for bottom-right display
-            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
-            {
-                _currentToastWindow = new MainWindow();
-                _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
-            }
-            _currentToastWindow.AddMessage(text, toast.ProcessName);
+            EnsureMainWindow();
+            _currentToastWindow!.AddMessage(text, toast.ProcessName);
         }
 
         public void OnMessagesHaveBeenCleared()
@@ -183,12 +324,8 @@ namespace Notifier
 
         private void AddMessage(string text, string processName = "")
         {
-            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
-            {
-                _currentToastWindow = new MainWindow();
-                _currentToastWindow.Closed += (_, __) => _currentToastWindow = null;
-            }
-            _currentToastWindow.AddMessage(text, processName);
+            EnsureMainWindow();
+            _currentToastWindow!.AddMessage(text, processName);
         }
         #endregion
 

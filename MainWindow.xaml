@@ -53,8 +53,8 @@ Closing="Window_Closing">
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <!-- 精确填满：Width=347, Height=47 -->
-                    <Grid Width="347" Height="47">
+                    <!-- 精确填满：Width=347, Height=Auto (allows vertical expand) -->
+                    <Grid Width="347" Height="Auto" VerticalAlignment="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="34"/>
                             <ColumnDefinition Width="*"/>
@@ -62,7 +62,7 @@ Closing="Window_Closing">
                         </Grid.ColumnDefinitions>
                         
                         <!-- Icon -->
-                        <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,6,0,0">
                             <Path Data="{StaticResource IconBell}" Style="{StaticResource IconPathStyle}"/>
                         </Viewbox>
 
