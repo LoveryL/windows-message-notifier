@@ -55,3 +55,6 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Certificates (do not commit .pfx files containing private keys)
+Certificates/*.pfx

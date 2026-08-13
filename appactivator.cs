@@ -73,19 +73,22 @@ namespace Notifier
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IApplicationActivationManager
         {
-            IntPtr ActivateApplication(
+            [PreserveSig]
+            int ActivateApplication(
                 [In] string appUserModelId,
                 [In] string arguments,
                 [In] ActivateOptions options,
                 [Out] out uint processId);
 
-            IntPtr ActivateForFile(
+            [PreserveSig]
+            int ActivateForFile(
                 [In] string appUserModelId,
                 [In] IntPtr itemArray,
                 [In] string verb,
                 [Out] out uint processId);
 
-            IntPtr ActivateForProtocol(
+            [PreserveSig]
+            int ActivateForProtocol(
                 [In] string appUserModelId,
                 [In] IntPtr itemArray,
                 [Out] out uint processId);
@@ -93,6 +96,7 @@ namespace Notifier
 
         [ComImport]
         [Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+        [ClassInterface(ClassInterfaceType.None)]
         private class ApplicationActivationManager { }
 
         [Flags]
@@ -108,23 +112,18 @@ namespace Notifier
         {
             try
             {
-                var clsid = new Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C");
-                var type = Type.GetTypeFromCLSID(clsid);
-                if (type == null)
-                    return (false, "无法获取 CLSID_ApplicationActivationManager 的类型");
-
-                var activator = (IApplicationActivationManager?)Activator.CreateInstance(type);
+                // Instantiate the COM coclass and cast to the interface to get correct signature (int/HRESULT)
+                var activator = (IApplicationActivationManager?)new ApplicationActivationManager();
                 if (activator == null)
                     return (false, "创建 ApplicationActivationManager 实例失败");
 
-
-                int hr = (int)activator.ActivateApplication(
+                int hr = activator.ActivateApplication(
                     aumid,
                     string.Empty,
                     ActivateOptions.None,
                     out uint pid);
 
-                if (hr == 0) 
+                if (hr == 0)
                     return (true, $"已通过 COM 唤醒应用，进程 PID = {pid}");
 
                 return (false, $"ActivateApplication 返回 HRESULT = 0x{hr:X8}");

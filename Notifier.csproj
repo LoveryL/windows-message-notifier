@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,7 +9,19 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <!-- Prevent generation of assembly attributes to avoid duplicates during XAML temporary builds -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <!-- NOTE: keep GenerateAssemblyInfo=false only. Disabling many fine-grained assembly attribute generation is unnecessary and can cause tooling inconsistencies. -->
+
+    <!-- Enable MSIX generation flags (visual studio / msbuild will create an MSIX/Appx when tooling is available).
+         Note: packaging signing/certificate configuration is environment-specific; adjust PackageCertificateKeyFile or signing settings in your CI/IDE as needed. -->
+    <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+    <AppxBundle>Never</AppxBundle>
+    <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
+    <!-- Basic package identity - change as appropriate for your store/publish needs -->
+    <PackageId>LoveryL.WindowsMessageNotifier</PackageId>
+    <PackageDisplayName>Windows Message Notifier</PackageDisplayName>
+    <PackagePublisher>CN=NotifierDev</PackagePublisher>
+    <!-- Reference the generated test certificate (DO NOT commit the PFX to public repos) -->
+    <PackageCertificateKeyFile>Certificates\Notifier.pfx</PackageCertificateKeyFile>
+    <PackageVersion>1.0.0.0</PackageVersion>
   </PropertyGroup>
 
   <ItemGroup>

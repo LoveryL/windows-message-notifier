@@ -13,7 +13,6 @@ namespace Notifier
     public partial class App : WpfApp
     {
         private ToastNotificationListener? _listener;
-        private DispatcherTimer? _pollingTimer;
         private Forms.NotifyIcon? _notifyIcon;
 
         private MainWindow? _currentToastWindow;
@@ -295,10 +294,7 @@ namespace Notifier
             _listener.OnToastDetected += OnToastDetected;
             AddMessage("新信息:✅ 通知监听已启动");
 
-            // Start polling only after listener initialization to reduce CPU usage during startup.
-            _pollingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
-            _pollingTimer.Tick += (_, __) => _ = _listener?.FetchLatestNotificationAsync();
-            _pollingTimer.Start();
+            // event-driven: polling removed. Listener will invoke OnToastDetected when new toasts arrive.
         }
 
         private void OnToastDetected(ToastData toast)
@@ -364,7 +360,8 @@ namespace Notifier
 
         protected override void OnExit(ExitEventArgs e)
         {
-            _pollingTimer?.Stop();
+            // stop listener and detach handlers
+            try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch { }
             _notifyIcon?.Dispose();
             base.OnExit(e);
         }
