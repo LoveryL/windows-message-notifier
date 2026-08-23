@@ -1,11 +1,15 @@
-﻿using Forms = System.Windows.Forms;
+using Forms = System.Windows.Forms;
 using WpfApp = System.Windows.Application;
 
 using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
+using System.Threading.Tasks;
+using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32;
+using Windows.ApplicationModel;
 
 namespace Notifier
 {
@@ -183,8 +187,10 @@ namespace Notifier
 
             // Load or create configuration stored in registry. On first run defaults are written.
             Config = RegistryConfig.LoadOrCreateDefaults();
+            Logger.Info($"应用启动 (MainWindowShown={Config.MainWindowShown})");
 
             InitializeNotifyIcon();
+            Logger.Info("托盘图标已初始化");
             _ = InitializeListenerAsync();
 
             // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
@@ -289,10 +295,11 @@ namespace Notifier
         {
             _listener = new ToastNotificationListener();
             var (ok, msg) = await _listener.InitializeAsync();
-            if (!ok) { AddMessage($"新信息:⚠ 监听失败：{msg}"); return; }
+            if (!ok) { AddMessage($"新信息:⚠ 监听失败：{msg}"); Logger.Error($"监听初始化失败：{msg}"); return; }
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
             AddMessage("新信息:✅ 通知监听已启动");
+            Logger.Info("通知监听已启动");
 
             // event-driven: polling removed. Listener will invoke OnToastDetected when new toasts arrive.
         }
@@ -305,6 +312,8 @@ namespace Notifier
             SetAlertIcon();
             OnNewToastDetected?.Invoke(toast);
             _summaryWindow?.RefreshMessages();
+
+            Logger.Info($"检测到新通知 Title=\"{toast.Title}\" App=\"{toast.AppName}\" Aumid=\"{toast.Aumid}\"");
 
             var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
                 ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
@@ -340,29 +349,125 @@ namespace Notifier
         #endregion
 
         #region 自启
-        private bool IsAutoStartEnabled()
-        {
-            try { using var k = Registry.CurrentUser.OpenSubKey(RunKey); return k?.GetValue(AppName) != null; }
-            catch { return false; }
-        }
+private static bool IsPackaged()
+{
+    try
+    {
+        var length = 0u;
+        GetCurrentPackageFullName(ref length, null);
+        var sb = new System.Text.StringBuilder((int)length);
+        return GetCurrentPackageFullName(ref length, sb) == 0;
+    }
+    catch { return false; }
+}
 
-        private void ToggleAutoStart()
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+private static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, System.Text.StringBuilder? packageFullName);
+
+private const string StartupTaskId = "NotifierAutoStart";
+
+private bool IsAutoStartEnabled()
+{
+    try
+    {
+        if (IsPackaged())
         {
-            try
-            {
-                using var k = Registry.CurrentUser.CreateSubKey(RunKey);
-                if (IsAutoStartEnabled()) { k.DeleteValue(AppName, false); AddMessage("新信息:🔘 已关闭开机自启"); }
-                else { k.SetValue(AppName, Environment.ProcessPath ?? ""); AddMessage("新信息:🔘 已开启开机自启"); }
-            }
-            catch (Exception ex) { AddMessage($"新信息:❌ 自启失败：{ex.Message}"); }
+            // 同步包装一下异步（托盘菜单构造时用）
+            var task = StartupTaskGetSync();
+            return task == StartupTaskState.Enabled;
         }
-        #endregion
+        else
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(RunKey);
+            return k?.GetValue(AppName) != null;
+        }
+    }
+    catch { return false; }
+}
+
+private void ToggleAutoStart()
+{
+    try
+    {
+        if (IsPackaged())
+        {
+            _ = TogglePackagedAutoStart();
+        }
+        else
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(RunKey);
+if (k.GetValue(AppName) != null)
+{
+    k.DeleteValue(AppName, false);
+    AddMessage("新信息:🔘 已关闭开机自启");
+    Logger.Info("开机自启已关闭(注册表)");
+}
+else
+{
+    k.SetValue(AppName, Environment.ProcessPath ?? "");
+    AddMessage("新信息:🔘 已开启开机自启");
+    Logger.Info($"开机自启已开启(注册表) Path=\"{Environment.ProcessPath}\"");
+}
+        }
+    }
+    catch (Exception ex) { AddMessage($"新信息:❌ 自启失败：{ex.Message}"); }
+}
+
+private static StartupTaskState StartupTaskGetSync()
+{
+    // 直接在新线程上同步等待，避免死锁
+    try
+    {
+        return Task.Run(() =>
+        {
+            Logger.Info($"准备获取 StartupTask,当前 StartupTaskId 值为: {StartupTaskId}");
+            var task = StartupTask.GetAsync(StartupTaskId).GetAwaiter().GetResult();
+            return task.State;
+        }).GetAwaiter().GetResult();
+    }
+    catch (Exception ex)
+    {
+        Logger.Error("获取 StartupTask 状态失败", ex);
+        return StartupTaskState.Disabled;
+    }
+}
+
+private async Task TogglePackagedAutoStart()
+{
+    var task = await StartupTask.GetAsync(StartupTaskId);
+    Logger.Info($"打包自启切换，当前 State={task.State}");
+    switch (task.State)
+    {
+        case StartupTaskState.Enabled:
+            task.Disable();
+            AddMessage("新信息:🔘 已关闭开机自启");
+            Logger.Info("开机自启已关闭(StartupTask)");
+            break;
+        case StartupTaskState.Disabled:
+            var r = await task.RequestEnableAsync();
+            AddMessage(r == StartupTaskState.Enabled
+                ? "新信息:🔘 已开启开机自启"
+                : "新信息:⚠️ 用户未确认开启自启");
+            Logger.Info($"开机自启开启(StartupTask) 结果={r}");
+            break;
+        case StartupTaskState.DisabledByUser:
+            AddMessage("新信息:⚠️ 已被你在任务管理器禁用，请到 设置→应用→启动 打开");
+            Logger.Warn("开机自启被用户禁用(DisabledByUser)");
+            break;
+        default:
+            AddMessage("新信息:⚠️ 系统策略禁止自启");
+            Logger.Warn($"开机自启受系统策略限制 State={task.State}");
+            break;
+    }
+}
+#endregion
 
         protected override void OnExit(ExitEventArgs e)
         {
+            Logger.Info($"应用退出 (ListenerActive={_listener != null})");
             // stop listener and detach handlers
-            try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch { }
-            _notifyIcon?.Dispose();
+            try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch (Exception ex) { Logger.Error("停止监听时异常", ex); }
+            try { _notifyIcon?.Dispose(); } catch (Exception ex) { Logger.Error("释放托盘图标时异常", ex); }
             base.OnExit(e);
         }
     }

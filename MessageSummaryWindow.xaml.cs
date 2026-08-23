@@ -65,7 +65,7 @@ namespace Notifier
                     _allowDeactivate = true;
                     ReportFocusState?.Invoke(true);
                     var hwnd = new WindowInteropHelper(this).Handle;
-                    var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
+                    var accent = new ACCENTPOLICY { nAccentState = 3, nColor =0 };
                     var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
                     Marshal.StructureToPtr(accent, data.pData, false);
                     SetWindowCompositionAttribute(hwnd, ref data);

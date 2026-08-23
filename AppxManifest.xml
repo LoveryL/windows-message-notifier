@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Package IgnorableNamespaces="uap uap10 uap5 mp"
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest">
-  <Identity Name="LoveryL.Notifier" Publisher="CN=Levoy" Version="1.1.1.0" ProcessorArchitecture="neutral" />
+  <Identity Name="LoveryL.Notifier" Publisher="CN=Levoy" Version="1.2.0.0" ProcessorArchitecture="neutral" />
   <Properties>
     <DisplayName>Notifier</DisplayName>
     <PublisherDisplayName>Levoy</PublisherDisplayName>
