@@ -187,19 +187,19 @@ namespace Notifier
         {
             if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
             _smtcBusy = true;
-            try
-            {
-                // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
-                await Task.Run(() => _smtcController.TogglePlayPause());
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"播放/暂停操作失败: {ex.Message}");
-            }
-            finally
-            {
-                _smtcBusy = false;
-            }
+           try
+{
+    await Task.Run(() => _smtcController.TogglePlayPause());
+    await Dispatcher.InvokeAsync(() => TryUpdateMediaUI());
+}
+catch (Exception ex)
+{
+    Debug.WriteLine($"SMTC 操作失败: {ex.Message}");
+}
+finally
+{
+    _smtcBusy = false;
+}
         }
 
         /// <summary>

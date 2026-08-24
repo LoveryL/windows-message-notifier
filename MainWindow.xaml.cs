@@ -9,13 +9,13 @@ using System.Windows.Threading;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
 using System.Windows.Controls;
-
+using System.Threading.Tasks;
 
 namespace Notifier
 {
     public partial class MainWindow : Window
     {
-#region Effect
+        #region Effect
         [DllImport("user32.dll")]
         private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
 
@@ -36,6 +36,7 @@ namespace Notifier
             public int ulDataSize;
         }
         #endregion
+
         #region Win32 无焦点置顶 & 鼠标穿透
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
@@ -60,14 +61,16 @@ namespace Notifier
         private static extern IntPtr SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
             int X, int Y, int cx, int cy, uint uFlags);
         #endregion
+
         private DispatcherTimer? _hideTimer;
         private ObservableCollection<ToastMessageGroup> _messageGroups = new();
         private bool _isClosingAnimation = false;
+        private bool _isClosed = false;  // ✅ 新增：标记窗口已关闭
 
-        // New: queue incoming messages and display them sequentially (earliest->latest)
+        // 消息队列
         private readonly System.Collections.Generic.List<QueuedMessage> _messageQueue = new();
         private DispatcherTimer _displayTimer;
-                private bool _isDisplaying = false;
+        private bool _isDisplaying = false;
 
         // Pause/resume-aware display timer support
         private readonly TimeSpan _displayInterval = TimeSpan.FromSeconds(3);
@@ -78,15 +81,18 @@ namespace Notifier
         private DispatcherTimer _ctrlPollTimer;
         private bool _ctrlHeld = false;
 
-        private record QueuedMessage(DateTime Time, string Title, string Body, string ProcessName);
+        // ✅ 新增：管理动画资源，防止内存泄漏
+        private Storyboard? _currentFadeInAnimation;
+        private Storyboard? _currentFadeOutAnimation;
 
+        private record QueuedMessage(DateTime Time, string Title, string Body, string ProcessName);
 
         public MainWindow()
         {
             InitializeComponent();
             MessageList.ItemsSource = _messageGroups;
 
-            // Apply configured opacity if available (defaults preserved otherwise)
+            // Apply configured opacity if available
             try
             {
                 if (App.Config != null && !double.IsNaN(App.Config.MainWindowOpacity))
@@ -97,8 +103,8 @@ namespace Notifier
             Loaded += (s, e) =>
             {
                 PositionWindow();
-                
             };
+
             SourceInitialized += (_, __) =>
             {
                 IntPtr hwnd = new WindowInteropHelper(this).Handle;
@@ -106,20 +112,25 @@ namespace Notifier
                 SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT);
             };
 
-            // Display timer: each message shows for 3s. Timer is paused during transitions.
+            // Display timer
             _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _displayTimer.Tick += (_, __) => OnDisplayTimerTick();
+            _displayTimer.Tick += OnDisplayTimerTick;  // ✅ 使用命名方法便于取消订阅
 
-            // Polling timer to detect Ctrl key presses while notifications are showing
+            // Polling timer
             _ctrlPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             _ctrlPollTimer.Tick += CheckCtrlState;
             _ctrlPollTimer.Start();
+
+            // ✅ 订阅窗口关闭事件，清理资源
+            this.Closed += OnWindowClosed;
         }
 
         #region 公开接口
         public void AddMessage(string text, string processName = "")
         {
-            // ensure enqueue and UI operations run on UI thread
+            // 如果窗口已关闭，忽略新消息
+            if (_isClosed) return;
+
             Dispatcher.Invoke(() =>
             {
                 var (title, body) = ParseMessage(text);
@@ -129,15 +140,75 @@ namespace Notifier
                 _messageQueue.Add(new QueuedMessage(DateTime.Now, t, b, processName ?? ""));
                 _messageQueue.Sort((a, c) => a.Time.CompareTo(c.Time));
 
-                if (!_isDisplaying)
+                if (!_isDisplaying && !_isClosed)
                     StartDisplaying();
             });
         }
         #endregion
 
-        private async void OnDisplayTimerTick()
+        #region 动画辅助方法（防止内存泄漏）
+        private async Task FadeOutAsync()
         {
-            // stop single-shot timer
+            // ✅ 清理旧的动画
+            if (_currentFadeOutAnimation != null)
+            {
+                _currentFadeOutAnimation.Stop();
+                _currentFadeOutAnimation = null;
+            }
+
+            if (Resources["FadeOutStoryboard"] is Storyboard template)
+            {
+                _currentFadeOutAnimation = template.Clone();
+                var tcs = new TaskCompletionSource<bool>();
+                
+                void handler(object? s, EventArgs e)
+                {
+                    _currentFadeOutAnimation!.Completed -= handler;
+                    tcs.TrySetResult(true);
+                }
+                
+                _currentFadeOutAnimation.Completed += handler;
+                _currentFadeOutAnimation.Begin(this);
+                await tcs.Task;
+                _currentFadeOutAnimation = null;
+            }
+        }
+
+        private async Task FadeInAsync()
+        {
+            // ✅ 清理旧的动画
+            if (_currentFadeInAnimation != null)
+            {
+                _currentFadeInAnimation.Stop();
+                _currentFadeInAnimation = null;
+            }
+
+            if (Resources["FadeInStoryboard"] is Storyboard template)
+            {
+                _currentFadeInAnimation = template.Clone();
+                var tcs = new TaskCompletionSource<bool>();
+                
+                void handler(object? s, EventArgs e)
+                {
+                    _currentFadeInAnimation!.Completed -= handler;
+                    tcs.TrySetResult(true);
+                }
+                
+                _currentFadeInAnimation.Completed += handler;
+                _currentFadeInAnimation.Begin(this);
+                await tcs.Task;
+                _currentFadeInAnimation = null;
+            }
+        }
+        #endregion
+
+        #region 显示逻辑
+        private async void OnDisplayTimerTick(object? sender, EventArgs e)
+        {
+            // ✅ 如果窗口已关闭或正在关闭，停止处理
+            if (_isClosed || _isClosingAnimation) return;
+
+            // stop timer
             _displayTimer.Stop();
 
             if (_messageQueue.Count == 0)
@@ -148,45 +219,24 @@ namespace Notifier
 
             if (_messageQueue.Count > 1)
             {
-                // transition to next message with fade-out then fade-in
-                if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-                {
-                    var fo = fadeOut.Clone();
-                    var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                    fo.Completed += (s, e) => tcs.TrySetResult(true);
-                    fo.Begin(this);
-                    await tcs.Task;
-                }
+                // transition to next message
+                await FadeOutAsync();
 
-                // remove the shown message and display next
+                // remove the shown message
                 if (_messageQueue.Count > 0)
                     _messageQueue.RemoveAt(0);
 
                 ShowCurrentQueueHeadImmediate();
 
-                if (Resources["FadeInStoryboard"] is Storyboard fadeIn)
-                {
-                    var fi = fadeIn.Clone();
-                    var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                    fi.Completed += (s, e) => tcs.TrySetResult(true);
-                    fi.Begin(this);
-                    await tcs.Task;
-                }
+                await FadeInAsync();
 
-                // start timer for next message after fade-in completes
+                // start timer for next message
                 StartDisplayTimer();
             }
             else
             {
                 // last message: fade out and hide
-                if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-                {
-                    var fo = fadeOut.Clone();
-                    var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                    fo.Completed += (s, e) => tcs.TrySetResult(true);
-                    fo.Begin(this);
-                    await tcs.Task;
-                }
+                await FadeOutAsync();
 
                 _messageQueue.Clear();
                 _messageGroups.Clear();
@@ -197,30 +247,26 @@ namespace Notifier
 
         private async void StartDisplaying()
         {
+            // ✅ 防止在关闭后启动
+            if (_isClosed || _isClosingAnimation) return;
             if (_messageQueue.Count == 0) return;
+
             _isDisplaying = true;
 
             Visibility = Visibility.Visible;
             ShowNoActivateTopmost();
 
-                    await Dispatcher.InvokeAsync(async () =>
+            await Dispatcher.InvokeAsync(() =>
             {
                 PositionWindow();
                 ShowCurrentQueueHeadImmediate();
+            }, DispatcherPriority.Normal);
 
-                if (Resources["FadeInStoryboard"] is Storyboard fadeIn)
-                        {
-                            var fi = fadeIn.Clone();
-                            var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                            fi.Completed += (s, e) => tcs.TrySetResult(true);
-                            fi.Begin(this);
-                            await tcs.Task;
-                        }
+            await FadeInAsync();
 
-                        // start single-shot timer for 3s after fade-in completes
-                        StartDisplayTimer();
-                    }, DispatcherPriority.Background);
-                }
+            // start timer after fade-in completes
+            StartDisplayTimer();
+        }
 
         private void ShowCurrentQueueHeadImmediate()
         {
@@ -228,24 +274,26 @@ namespace Notifier
             var head = _messageQueue.FirstOrDefault();
             if (head != null)
             {
-                var group = new ToastMessageGroup { Title = head.Title, ProcessName = head.ProcessName, Time = head.Time };
+                var group = new ToastMessageGroup 
+                { 
+                    Title = head.Title, 
+                    ProcessName = head.ProcessName, 
+                    Time = head.Time 
+                };
                 if (!string.IsNullOrEmpty(head.Body))
                     group.Bodies.Add(head.Body);
                 _messageGroups.Add(group);
             }
         }
 
-        // Public accessor for App to query currently-displayed message title (null if none)
         public string? GetCurrentHeadTitle()
         {
             var head = _messageQueue.FirstOrDefault();
             return head == null ? null : (string.IsNullOrWhiteSpace(head.Title) ? "新通知" : head.Title);
         }
+        #endregion
 
         #region 无焦点显示 / 隐藏
-        /// <summary>
-        /// 置顶显示
-        /// </summary>
         private void ShowNoActivateTopmost()
         {
             var hwnd = new WindowInteropHelper(this).EnsureHandle();
@@ -268,14 +316,19 @@ namespace Notifier
         #region 动画
         private void PlaySlideInAnimation()
         {
-            // prefer fade-in if available, fallback to existing slide-in
             if (Resources["FadeInStoryboard"] is Storyboard fadeIn)
                 fadeIn.Begin(this);
             else if (Resources["SlideInAnimation"] is Storyboard sb)
                 sb.Begin();
+
             var hwnd = new WindowInteropHelper(this).Handle;
             var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
-            var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
+            var data = new WINCOMPATTRDATA 
+            { 
+                nAttribute = 19, 
+                pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), 
+                ulDataSize = Marshal.SizeOf(accent) 
+            };
             Marshal.StructureToPtr(accent, data.pData, false);
             SetWindowCompositionAttribute(hwnd, ref data);
             Marshal.FreeHGlobal(data.pData);
@@ -283,7 +336,9 @@ namespace Notifier
 
         private void PlaySlideOutAnimationAndHide()
         {
-            // prefer fade-out if available, fallback to existing slide-out
+            // 如果窗口已关闭，直接返回
+            if (_isClosed) return;
+
             if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
             {
                 fadeOut = fadeOut.Clone();
@@ -293,7 +348,7 @@ namespace Notifier
             }
             else if (Resources["SlideOutAnimation"] is Storyboard sb)
             {
-                sb.Completed -= OnSlideOutCompleted; // 防重复挂
+                sb.Completed -= OnSlideOutCompleted;
                 sb.Completed += OnSlideOutCompleted;
                 sb.Begin();
             }
@@ -306,35 +361,36 @@ namespace Notifier
 
         private void OnSlideOutCompleted(object? sender, EventArgs e)
         {
+            // ✅ 防止在关闭后操作
+            if (_isClosed) return;
+            
             Visibility = Visibility.Collapsed;
             RevokeTopmost();
         }
         #endregion
 
-        // New handlers for fade behaviour (wired from XAML)
+        #region 窗口事件
         private void Window_Loaded_Extended(object sender, RoutedEventArgs e)
         {
-            // enforce fixed size and position precisely (fix actual window size mismatch)
             this.SizeToContent = SizeToContent.Manual;
             this.Width = 375;
             this.Height = 75;
 
-            // position and ensure top-most no-activate behavior
             PositionWindow();
             ShowNoActivateTopmost();
 
-            // ensure OS-level window size matches exactly (use SetWindowPos)
             try
             {
                 var hwnd = new WindowInteropHelper(this).EnsureHandle();
-                SetWindowPos(hwnd, HWND_TOPMOST, (int)Math.Round(this.Left), (int)Math.Round(this.Top), (int)Math.Round(this.Width), (int)Math.Round(this.Height), SWP_NOACTIVATE);
+                SetWindowPos(hwnd, HWND_TOPMOST, (int)Math.Round(this.Left), (int)Math.Round(this.Top), 
+                    (int)Math.Round(this.Width), (int)Math.Round(this.Height), SWP_NOACTIVATE);
             }
             catch { }
-            // play fade-in (shortened duration handled in XAML resources)
+
             if (Resources["FadeInStoryboard"] is Storyboard fadeInExt)
                 fadeInExt.Begin(this);
 
-            // clip children to rounded corners to avoid square overlays covering corners
+            // clip children to rounded corners
             try
             {
                 var outer = this.FindName("OuterBorder") as Border;
@@ -342,7 +398,10 @@ namespace Notifier
                 {
                     void updateClip(object? s, EventArgs ea)
                     {
-                        outer.Clip = new RectangleGeometry(new Rect(0, 0, outer.ActualWidth, outer.ActualHeight), outer.CornerRadius.TopLeft, outer.CornerRadius.TopLeft);
+                        outer.Clip = new RectangleGeometry(
+                            new Rect(0, 0, outer.ActualWidth, outer.ActualHeight), 
+                            outer.CornerRadius.TopLeft, 
+                            outer.CornerRadius.TopLeft);
                     }
                     outer.SizeChanged += (s, e) => updateClip(s, e);
                     updateClip(null, EventArgs.Empty);
@@ -350,7 +409,6 @@ namespace Notifier
             }
             catch { }
 
-            // wire mouse click handler for Ctrl+click skipping
             try
             {
                 this.MouseLeftButtonDown -= OnMouseLeftClick;
@@ -358,9 +416,9 @@ namespace Notifier
             }
             catch { }
         }
+
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // position and ensure top-most no-activate behavior
             PositionWindow();
             ShowNoActivateTopmost();
 
@@ -368,40 +426,93 @@ namespace Notifier
                 fadeIn.Begin(this);
         }
 
+        // ✅ 修复：窗口关闭逻辑，防止死循环
         private void Window_Closing(object sender, CancelEventArgs e)
         {
-            if (_isClosingAnimation) return;
+            // 如果已经标记为正在关闭，允许真正关闭
+            if (_isClosingAnimation)
+            {
+                e.Cancel = false;
+                return;
+            }
+
+            // 取消关闭，执行动画
             e.Cancel = true;
             _isClosingAnimation = true;
 
-                    // stop timers to avoid callbacks during shutdown
-                    try { _displayTimer?.Stop(); } catch { }
-                    try { _hideTimer?.Stop(); } catch { }
-                    try { _ctrlPollTimer?.Stop(); } catch { }
+            // 停止所有计时器
+            try 
+            { 
+                _displayTimer?.Stop();
+                _displayTimer.Tick -= OnDisplayTimerTick;  // ✅ 取消订阅
+            } 
+            catch { }
+            
+            try { _hideTimer?.Stop(); } catch { }
+            
+            try 
+            { 
+                _ctrlPollTimer?.Stop();
+                _ctrlPollTimer.Tick -= CheckCtrlState;  // ✅ 取消订阅
+            } 
+            catch { }
 
-                    if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-                    {
-                        fadeOut = fadeOut.Clone();
-                        fadeOut.Completed += (_, __) =>
-                        {
-                            // proceed with close after animation
-                            Application.Current.Dispatcher.Invoke(() => this.Close());
-                        };
-                        fadeOut.Begin(this);
-                    }
-                    else
-                    {
-                        // fallback: use existing slide-out behaviour then close
-                        PlaySlideOutAnimationAndHide();
-                        Application.Current.Dispatcher.Invoke(() => this.Close());
-                    }
+            // 清理动画资源
+            try
+            {
+                _currentFadeInAnimation?.Stop();
+                _currentFadeInAnimation = null;
+                _currentFadeOutAnimation?.Stop();
+                _currentFadeOutAnimation = null;
+            }
+            catch { }
 
-                }
+            if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
+            {
+                fadeOut = fadeOut.Clone();
+                fadeOut.Completed += (_, __) =>
+                {
+                    // ✅ 在 UI 线程上执行关闭，重置标志
+                    Dispatcher.Invoke(() =>
+                    {
+                        _isClosingAnimation = false;
+                        Close();
+                    });
+                };
+                fadeOut.Begin(this);
+            }
+            else
+            {
+                PlaySlideOutAnimationAndHide();
+                Dispatcher.Invoke(() =>
+                {
+                    _isClosingAnimation = false;
+                    Close();
+                });
+            }
+        }
+
+        // ✅ 新增：窗口关闭后的清理
+        private void OnWindowClosed(object? sender, EventArgs e)
+        {
+            _isClosed = true;
+            _isDisplaying = false;
+            
+            // 清理所有动画资源
+            _currentFadeInAnimation?.Stop();
+            _currentFadeInAnimation = null;
+            _currentFadeOutAnimation?.Stop();
+            _currentFadeOutAnimation = null;
+            
+            // 清空队列
+            _messageQueue.Clear();
+            _messageGroups.Clear();
+        }
+        #endregion
 
         #region 自动隐藏计时器
         private void StartHideTimer()
         {
-            // reuse the same timer instance to avoid repeated allocations and duplicate handlers
             if (_hideTimer == null)
             {
                 _hideTimer = new DispatcherTimer
@@ -424,7 +535,7 @@ namespace Notifier
         }
         #endregion
 
-        // Start display timer with default interval and update deadline
+        #region 计时器管理
         private void StartDisplayTimer()
         {
             try
@@ -436,23 +547,26 @@ namespace Notifier
             }
             catch { }
         }
+        #endregion
 
-        // Polling handler to detect Ctrl press/release and Ctrl+Shift expansion
+        #region Ctrl 状态检测
         private bool _isExpandedByShift = false;
         private double _savedHeight = 0;
         private SizeToContent _savedSizeToContent = SizeToContent.Manual;
 
         private void CheckCtrlState(object? sender, EventArgs e)
         {
+            // ✅ 如果窗口已关闭，停止检测
+            if (_isClosed) return;
+            if (!_isDisplaying || Visibility != Visibility.Visible) return;
+
             try
             {
-                if (!_isDisplaying || Visibility != Visibility.Visible) return;
                 bool isCtrlDown = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl)
                                 || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
                 bool isShiftDown = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftShift)
                                  || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightShift);
 
-                // Ctrl press/release: background, timer pause, mouse transparency
                 if (isCtrlDown && !_ctrlHeld)
                 {
                     _ctrlHeld = true;
@@ -477,13 +591,11 @@ namespace Notifier
                         _displayTimer.Start();
                         _pausedRemaining = null;
                     }
-                    // if we were expanded due to shift, collapse when ctrl released
                     if (_isExpandedByShift)
                         CollapseFromShift();
                     EnableMouseTransparency();
                 }
 
-                // Ctrl+Shift expansion (only expand downward; do not change width)
                 if (isCtrlDown && isShiftDown && !_isExpandedByShift)
                 {
                     ExpandForShift();
@@ -502,7 +614,6 @@ namespace Notifier
             {
                 var outer = this.FindName("OuterBorder") as Border;
                 if (outer == null) return;
-                // ensure brush exists and is animatable
                 if (!(outer.Background is SolidColorBrush scb))
                 {
                     scb = new SolidColorBrush(((SolidColorBrush)(new BrushConverter().ConvertFrom("#ACFFFFFF"))).Color);
@@ -537,9 +648,7 @@ namespace Notifier
             catch { }
         }
 
-        // Expansion helpers for Ctrl+Shift: expand downward to show full content without changing width
         private double _savedMaxHeight = double.NaN;
-        // save per-item original heights so they can be restored
         private readonly System.Collections.Generic.Dictionary<int, double> _savedItemHeights = new();
 
         private void ExpandForShift()
@@ -548,21 +657,16 @@ namespace Notifier
             {
                 if (_isExpandedByShift) return;
                 _isExpandedByShift = true;
-                // save current sizing
+
                 _savedHeight = this.Height;
                 _savedSizeToContent = this.SizeToContent;
                 _savedMaxHeight = this.MaxHeight;
 
-                // remove any height limits so window may grow beyond screen if necessary
                 this.MaxHeight = double.PositiveInfinity;
-
-                // allow height to auto-size to content while preserving width
                 this.SizeToContent = SizeToContent.Height;
-                // set Height to Auto
                 this.Height = double.NaN;
                 this.UpdateLayout();
 
-                // enable wrapping on all TextBlocks under RootGrid so full text can be displayed
                 try
                 {
                     var root = this.FindName("RootGrid") as System.Windows.DependencyObject ?? (System.Windows.DependencyObject)this;
@@ -573,7 +677,6 @@ namespace Notifier
                 }
                 catch { }
 
-                // make item template grids auto-height so wrapped text can expand vertically
                 try
                 {
                     _savedItemHeights.Clear();
@@ -587,23 +690,21 @@ namespace Notifier
                         {
                             if (!double.IsNaN(grid.Height))
                                 _savedItemHeights[i] = grid.Height;
-                            grid.Height = double.NaN; // Auto
+                            grid.Height = double.NaN;
                         }
                     }
                 }
                 catch { }
 
-                // force layout pass to recompute height
                 this.UpdateLayout();
 
-                // as a fallback, measure RootGrid and apply required height explicitly
                 try
                 {
                     var root = this.FindName("RootGrid") as System.Windows.FrameworkElement ?? this as System.Windows.FrameworkElement;
                     if (root != null)
                     {
                         root.Measure(new Size(this.Width, double.PositiveInfinity));
-                        double needed = root.DesiredSize.Height + 20; // small padding
+                        double needed = root.DesiredSize.Height + 20;
                         if (!double.IsNaN(needed) && needed > 0)
                             this.Height = needed;
                     }
@@ -620,7 +721,6 @@ namespace Notifier
                 if (!_isExpandedByShift) return;
                 _isExpandedByShift = false;
 
-                // revert wrapping on all text blocks under RootGrid
                 try
                 {
                     var root = this.FindName("RootGrid") as System.Windows.DependencyObject ?? (System.Windows.DependencyObject)this;
@@ -631,14 +731,12 @@ namespace Notifier
                 }
                 catch { }
 
-                // restore sizing
                 this.SizeToContent = _savedSizeToContent;
                 if (_savedSizeToContent == SizeToContent.Manual)
                 {
                     this.Height = _savedHeight;
                 }
 
-                // restore MaxHeight
                 try { this.MaxHeight = double.IsNaN(_savedMaxHeight) ? double.PositiveInfinity : _savedMaxHeight; } catch { }
 
                 this.UpdateLayout();
@@ -646,7 +744,6 @@ namespace Notifier
             catch { }
         }
 
-        // Visual tree helper
         private static System.Collections.Generic.IEnumerable<T> FindVisualChildren<T>(System.Windows.DependencyObject depObj) where T : System.Windows.DependencyObject
         {
             if (depObj == null) yield break;
@@ -658,33 +755,29 @@ namespace Notifier
                     yield return childOfChild;
             }
         }
+        #endregion
 
-        // Handle left-click while Ctrl is held to skip current message immediately.
+        #region 鼠标事件
         private void OnMouseLeftClick(object? sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             try
             {
                 if (!_ctrlHeld || !_isDisplaying || Visibility != Visibility.Visible) return;
-                // ensure left button
                 if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
                 {
-                    // Skip current message asynchronously
                     SkipCurrentMessage();
-                    // mark handled so clicks don't propagate to underlying apps
                     e.Handled = true;
                 }
             }
             catch { }
         }
 
-        // Skip current message and transition to next immediately.
         public async void SkipCurrentMessage()
         {
             try
             {
-                if (!_isDisplaying) return;
+                if (!_isDisplaying || _isClosed) return;
 
-                // stop any running single-shot timer
                 try { _displayTimer.Stop(); } catch { }
 
                 if (_messageQueue.Count == 0)
@@ -695,32 +788,15 @@ namespace Notifier
 
                 if (_messageQueue.Count > 1)
                 {
-                    // fade out current
-                    if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-                    {
-                        var fo = fadeOut.Clone();
-                        var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                        fo.Completed += (s, e) => tcs.TrySetResult(true);
-                        fo.Begin(this);
-                        await tcs.Task;
-                    }
+                    await FadeOutAsync();
 
-                    // remove current and show next
                     if (_messageQueue.Count > 0)
                         _messageQueue.RemoveAt(0);
 
                     ShowCurrentQueueHeadImmediate();
 
-                    if (Resources["FadeInStoryboard"] is Storyboard fadeIn)
-                    {
-                        var fi = fadeIn.Clone();
-                        var tcs2 = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                        fi.Completed += (s, e) => tcs2.TrySetResult(true);
-                        fi.Begin(this);
-                        await tcs2.Task;
-                    }
+                    await FadeInAsync();
 
-                    // If Ctrl is held, keep timer paused (set remaining to full interval)
                     if (_ctrlHeld)
                     {
                         _pausedRemaining = _displayInterval;
@@ -732,15 +808,7 @@ namespace Notifier
                 }
                 else
                 {
-                    // last message: fade out and hide immediately
-                    if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-                    {
-                        var fo = fadeOut.Clone();
-                        var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
-                        fo.Completed += (s, e) => tcs.TrySetResult(true);
-                        fo.Begin(this);
-                        await tcs.Task;
-                    }
+                    await FadeOutAsync();
 
                     _messageQueue.Clear();
                     _messageGroups.Clear();
@@ -750,6 +818,7 @@ namespace Notifier
             }
             catch { }
         }
+        #endregion
 
         #region 布局定位
         private void PositionWindow()
@@ -758,7 +827,6 @@ namespace Notifier
             Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Arrange(new Rect(new Point(0, 0), DesiredSize));
 
-            // If a saved position exists in configuration, honor it.
             try
             {
                 if (App.Config != null && !double.IsNaN(App.Config.MainWindowTop) && !double.IsNaN(App.Config.MainWindowLeft))
@@ -770,8 +838,6 @@ namespace Notifier
             }
             catch { }
 
-            // enforce fixed window size and center horizontally, 15px from top
-            // Width/Height are set in XAML; use them directly to compute centered position
             var screenWidth = SystemParameters.PrimaryScreenWidth;
             Top = 15.0;
             Left = (screenWidth - this.Width) / 2.0;

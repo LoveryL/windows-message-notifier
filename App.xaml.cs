@@ -16,6 +16,7 @@ namespace Notifier
     
     public partial class App : WpfApp
     {
+        private bool _isReadyForTrayClick = false;
         private ToastNotificationListener? _listener;
         private Forms.NotifyIcon? _notifyIcon;
 
@@ -192,7 +193,11 @@ namespace Notifier
             InitializeNotifyIcon();
             Logger.Info("托盘图标已初始化");
             _ = InitializeListenerAsync();
-
+	Task.Run(async () =>
+        {
+            await Task.Delay(1000);
+            _isReadyForTrayClick = true;
+        });
             // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
             // (Timer creation moved to InitializeListenerAsync.)
 
@@ -236,7 +241,11 @@ namespace Notifier
         private void NotifyIcon_MouseClick(object? sender, Forms.MouseEventArgs e)
         {
             if (e.Button != Forms.MouseButtons.Left) return;
-
+	if (!_isReadyForTrayClick)
+        {
+            _notifyIcon?.ShowBalloonTip(1000, "正在初始化", "请稍后...", Forms.ToolTipIcon.Info);
+            return;
+        }
             if (_summaryWindow?.IsLoaded == true)
             {
                 _summaryWindow.RefreshMessages();

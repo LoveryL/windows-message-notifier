@@ -52,24 +52,50 @@ internal static class BrightnessManager
     /// 设置 GPU Gamma 模拟亮度（percent: 5~100）
     /// </summary>
     public static void SetSimulated(int percent)
+{
+    percent = Math.Clamp(percent, 5, 100);
+    _lastSimulatedPercent = percent;
+
+    float level = percent / 100f;
+    var ramp = CreateRamp();
+
+    for (int i = 0; i < 256; i++)
     {
-        percent = Math.Clamp(percent, 5, 100);
-        _lastSimulatedPercent = percent; // 缓存
+        ushort v = (ushort)(i * level * 257);
+        ramp.Red[i] = v;
+        ramp.Green[i] = v;
+        ramp.Blue[i] = v;
+    }
 
-        float level = percent / 100f;
-        var ramp = CreateRamp();
-
-        for (int i = 0; i < 256; i++)
+    IntPtr dc = IntPtr.Zero;
+    try
+    {
+        dc = GetDC(IntPtr.Zero);
+        if (dc == IntPtr.Zero)
         {
-            ushort v = (ushort)(i * level * 257);
-            ramp.Red[i] = v;
-            ramp.Green[i] = v;
-            ramp.Blue[i] = v;
+            Logger.Error("GetDC(IntPtr.Zero) 返回 NULL，无法设置 Gamma");
+            return;
         }
 
-        var dc = GetDC(IntPtr.Zero);
-        SetDeviceGammaRamp(dc, ref ramp);
+        bool ok = SetDeviceGammaRamp(dc, ref ramp);
+        if (!ok)
+        {
+            int err = Marshal.GetLastWin32Error();
+            Logger.Error(
+                $"SetDeviceGammaRamp 失败，亮度={percent}%，Win32ErrorCode={err}");
+        }
     }
+    catch (Exception ex)
+    {
+        Logger.Error(
+            $"SetSimulated 发生异常，亮度={percent}%", ex);
+    }
+    finally
+    {
+        if (dc != IntPtr.Zero)
+            ReleaseDC(IntPtr.Zero, dc);
+    }
+}
 
     private static BrightnessCapability Probe()
     {
@@ -95,7 +121,8 @@ internal static class BrightnessManager
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)] public ushort[] Green;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)] public ushort[] Blue;
     }
-
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
     [DllImport("gdi32.dll")] private static extern bool GetDeviceGammaRamp(IntPtr hDC, ref RAMP lpRamp);
     [DllImport("gdi32.dll")] private static extern bool SetDeviceGammaRamp(IntPtr hDC, ref RAMP lpRamp);
     [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hWnd);
