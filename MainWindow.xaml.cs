@@ -146,7 +146,7 @@ namespace Notifier
         }
         #endregion
 
-        #region 动画辅助方法（防止内存泄漏）
+        #region 动画辅助方法
         private async Task FadeOutAsync()
         {
             // ✅ 清理旧的动画
@@ -570,7 +570,7 @@ namespace Notifier
                 if (isCtrlDown && !_ctrlHeld)
                 {
                     _ctrlHeld = true;
-                    AnimateBorderToColor(Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+                    AnimateBorderToColor(System.Windows.Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
                     if (_displayTimer.IsEnabled)
                     {
                         var remaining = _displayDeadline - DateTime.Now;
@@ -582,7 +582,7 @@ namespace Notifier
                 else if (!isCtrlDown && _ctrlHeld)
                 {
                     _ctrlHeld = false;
-                    AnimateBorderToColor(Color.FromArgb(0xAC, 0xFF, 0xFF, 0xFF));
+                    AnimateBorderToColor(System.Windows.Media.Color.FromArgb(0xAC, 0xFF, 0xFF, 0xFF));
                     if (_pausedRemaining.HasValue)
                     {
                         var rem = _pausedRemaining.Value;
@@ -608,7 +608,7 @@ namespace Notifier
             catch { }
         }
 
-        private void AnimateBorderToColor(Color target)
+        private void AnimateBorderToColor(System.Windows.Media.Color target)
         {
             try
             {
@@ -703,7 +703,7 @@ namespace Notifier
                     var root = this.FindName("RootGrid") as System.Windows.FrameworkElement ?? this as System.Windows.FrameworkElement;
                     if (root != null)
                     {
-                        root.Measure(new Size(this.Width, double.PositiveInfinity));
+                        root.Measure(new System.Windows.Size(this.Width, double.PositiveInfinity));
                         double needed = root.DesiredSize.Height + 20;
                         if (!double.IsNaN(needed) && needed > 0)
                             this.Height = needed;
@@ -824,8 +824,8 @@ namespace Notifier
         private void PositionWindow()
         {
             UpdateLayout();
-            Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Arrange(new Rect(new Point(0, 0), DesiredSize));
+            Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            Arrange(new Rect(new System.Windows.Point(0, 0), DesiredSize));
 
             try
             {

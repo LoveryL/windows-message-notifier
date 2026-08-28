@@ -16,6 +16,8 @@ namespace Notifier
     
     public partial class App : WpfApp
     {
+        private static Settings_Manager sets = new Settings_Manager();
+        private bool on_setting=false;
         private bool _isReadyForTrayClick = false;
         private ToastNotificationListener? _listener;
         private Forms.NotifyIcon? _notifyIcon;
@@ -113,7 +115,7 @@ namespace Notifier
                     {
                         ToastMessageStore.RemoveByTitleAndSync(title);
                         _summaryWindow?.RefreshMessages();
-                        ((App)Application.Current).OnMessagesHaveBeenCleared();
+                        ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
                     }
                     catch { }
 
@@ -185,7 +187,7 @@ namespace Notifier
         {
             base.OnStartup(e);
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
+            sets.init_settings();
             // Load or create configuration stored in registry. On first run defaults are written.
             Config = RegistryConfig.LoadOrCreateDefaults();
             Logger.Info($"应用启动 (MainWindowShown={Config.MainWindowShown})");
@@ -229,10 +231,29 @@ namespace Notifier
             var auto = new Forms.ToolStripMenuItem("开机自启") { Checked = IsAutoStartEnabled() };
             auto.Click += (_, __) => { ToggleAutoStart(); auto.Checked = IsAutoStartEnabled(); };
             menu.Items.Add(auto);
+            var setting = new Forms.ToolStripMenuItem("设置");
+            setting.Click += (_, __) =>
+{
+    if (on_setting) return;
+
+    on_setting = true;
+    AddMessage("新通知:打开设置窗口", "Notifier");
+
+    var settingForm = new Set(sets);
+    settingForm.FormClosed += (_, __) =>
+    {
+        on_setting = false;
+        AddMessage("新通知:设置窗口已关闭", "Notifier");
+    };
+    settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
+    settingForm.Show();
+};
+            menu.Items.Add(setting);
             menu.Items.Add(new Forms.ToolStripSeparator());
             var exit = new Forms.ToolStripMenuItem("退出");
             exit.Click += (_, __) => Shutdown();
             menu.Items.Add(exit);
+            
 
             _notifyIcon.ContextMenuStrip = menu;
             _notifyIcon.MouseClick += NotifyIcon_MouseClick;
@@ -304,19 +325,18 @@ namespace Notifier
         {
             _listener = new ToastNotificationListener();
             var (ok, msg) = await _listener.InitializeAsync();
-            if (!ok) { AddMessage($"新信息:⚠ 监听失败：{msg}"); Logger.Error($"监听初始化失败：{msg}"); return; }
+            if (!ok) { AddMessage($"新信息:⚠ 监听失败：{msg}", "Notifier"); Logger.Error($"监听初始化失败：{msg}"); return; }
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
-            AddMessage("新信息:✅ 通知监听已启动");
+            AddMessage("新信息:✅ 通知监听已启动", "Notifier");
             Logger.Info("通知监听已启动");
-
             // event-driven: polling removed. Listener will invoke OnToastDetected when new toasts arrive.
         }
 
         private void OnToastDetected(ToastData toast)
         {
             if (!Dispatcher.CheckAccess()) { Dispatcher.Invoke(() => OnToastDetected(toast)); return; }
-
+            if(!sets.is_toast_enabled) return;
             ToastMessageStore.Add(toast);
             SetAlertIcon();
             OnNewToastDetected?.Invoke(toast);
@@ -408,18 +428,18 @@ private void ToggleAutoStart()
 if (k.GetValue(AppName) != null)
 {
     k.DeleteValue(AppName, false);
-    AddMessage("新信息:🔘 已关闭开机自启");
+    AddMessage("新信息:🔘 已关闭开机自启","Notifier");
     Logger.Info("开机自启已关闭(注册表)");
 }
 else
 {
     k.SetValue(AppName, Environment.ProcessPath ?? "");
-    AddMessage("新信息:🔘 已开启开机自启");
+    AddMessage("新信息:🔘 已开启开机自启","Notifier");
     Logger.Info($"开机自启已开启(注册表) Path=\"{Environment.ProcessPath}\"");
 }
         }
     }
-    catch (Exception ex) { AddMessage($"新信息:❌ 自启失败：{ex.Message}"); }
+    catch (Exception ex) { AddMessage($"新信息:❌ 自启失败：{ex.Message}","Notifier"); }
 }
 
 private static StartupTaskState StartupTaskGetSync()
@@ -449,22 +469,22 @@ private async Task TogglePackagedAutoStart()
     {
         case StartupTaskState.Enabled:
             task.Disable();
-            AddMessage("新信息:🔘 已关闭开机自启");
+            AddMessage("新信息:🔘 已关闭开机自启", "Notifier");
             Logger.Info("开机自启已关闭(StartupTask)");
             break;
         case StartupTaskState.Disabled:
             var r = await task.RequestEnableAsync();
             AddMessage(r == StartupTaskState.Enabled
                 ? "新信息:🔘 已开启开机自启"
-                : "新信息:⚠️ 用户未确认开启自启");
+                : "新信息:⚠️ 用户未确认开启自启", "Notifier");
             Logger.Info($"开机自启开启(StartupTask) 结果={r}");
             break;
         case StartupTaskState.DisabledByUser:
-            AddMessage("新信息:⚠️ 已被你在任务管理器禁用，请到 设置→应用→启动 打开");
+            AddMessage("新信息:⚠️ 已被你在任务管理器禁用，请到 设置→应用→启动 打开", "Notifier");
             Logger.Warn("开机自启被用户禁用(DisabledByUser)");
             break;
         default:
-            AddMessage("新信息:⚠️ 系统策略禁止自启");
+            AddMessage("新信息:⚠️ 系统策略禁止自启", "Notifier");
             Logger.Warn($"开机自启受系统策略限制 State={task.State}");
             break;
     }

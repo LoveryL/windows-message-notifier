@@ -213,7 +213,7 @@ namespace Notifier
 
             ToastMessageStore.RemoveByTitleAndSync(title);
             RefreshMessages();
-            ((App)Application.Current).OnMessagesHaveBeenCleared();
+            ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
 
             if (!string.IsNullOrWhiteSpace(aumid))
             {
@@ -254,7 +254,7 @@ namespace Notifier
                 ToastMessageStore.RemoveAndSync(m);
 
             RefreshMessages();
-            ((App)Application.Current).OnMessagesHaveBeenCleared();
+            ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
 
             foreach (var a in aumids)
             {
