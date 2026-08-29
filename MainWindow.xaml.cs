@@ -176,7 +176,6 @@ namespace Notifier
 
         private async Task FadeInAsync()
         {
-            // ✅ 清理旧的动画
             if (_currentFadeInAnimation != null)
             {
                 _currentFadeInAnimation.Stop();
@@ -247,7 +246,6 @@ namespace Notifier
 
         private async void StartDisplaying()
         {
-            // ✅ 防止在关闭后启动
             if (_isClosed || _isClosingAnimation) return;
             if (_messageQueue.Count == 0) return;
 
@@ -826,21 +824,11 @@ namespace Notifier
             UpdateLayout();
             Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
             Arrange(new Rect(new System.Windows.Point(0, 0), DesiredSize));
-
-            try
-            {
-                if (App.Config != null && !double.IsNaN(App.Config.MainWindowTop) && !double.IsNaN(App.Config.MainWindowLeft))
-                {
-                    Top = App.Config.MainWindowTop;
-                    Left = App.Config.MainWindowLeft;
-                    return;
-                }
-            }
-            catch { }
-
             var screenWidth = SystemParameters.PrimaryScreenWidth;
-            Top = 15.0;
+            Top = App.Config.MainWindowTop;
+            if(App.Config.IsMainWindowMiddle)
             Left = (screenWidth - this.Width) / 2.0;
+            else Left = App.Config.MainWindowLeft;
         }
         #endregion
 

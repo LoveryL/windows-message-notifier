@@ -188,9 +188,10 @@ namespace Notifier
             base.OnStartup(e);
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             sets.init_settings();
+            resets();
             // Load or create configuration stored in registry. On first run defaults are written.
-            Config = RegistryConfig.LoadOrCreateDefaults();
-            Logger.Info($"应用启动 (MainWindowShown={Config.MainWindowShown})");
+            //Config = RegistryConfig.LoadOrCreateDefaults();
+            //Logger.Info($"应用启动 (MainWindowShown={Config.MainWindowShown})");
 
             InitializeNotifyIcon();
             Logger.Info("托盘图标已初始化");
@@ -200,23 +201,7 @@ namespace Notifier
             await Task.Delay(1000);
             _isReadyForTrayClick = true;
         });
-            // polling timer will be started after the listener initializes to avoid unnecessary ticks during startup.
-            // (Timer creation moved to InitializeListenerAsync.)
 
-            // If configuration indicates MainWindow should be shown at startup, create it now and apply stored properties.
-            if (Config.MainWindowShown)
-            {
-                EnsureMainWindow();
-                try
-                {
-                    if (!double.IsNaN(Config.MainWindowOpacity)) _currentToastWindow!.Opacity = Config.MainWindowOpacity;
-                    if (!double.IsNaN(Config.MainWindowTop)) _currentToastWindow!.Top = Config.MainWindowTop;
-                    if (!double.IsNaN(Config.MainWindowLeft)) _currentToastWindow!.Left = Config.MainWindowLeft;
-                }
-                catch { }
-
-                _currentToastWindow!.Show();
-            }
         }
 
         #region 托盘
@@ -231,24 +216,28 @@ namespace Notifier
             var auto = new Forms.ToolStripMenuItem("开机自启") { Checked = IsAutoStartEnabled() };
             auto.Click += (_, __) => { ToggleAutoStart(); auto.Checked = IsAutoStartEnabled(); };
             menu.Items.Add(auto);
+
             var setting = new Forms.ToolStripMenuItem("设置");
             setting.Click += (_, __) =>
-{
-    if (on_setting) return;
+            {
+                if (on_setting) return;
 
-    on_setting = true;
-    AddMessage("新通知:打开设置窗口", "Notifier");
+                on_setting = true;
+                AddMessage("新通知:打开设置窗口", "Notifier");
 
-    var settingForm = new Set(sets);
-    settingForm.FormClosed += (_, __) =>
-    {
-        on_setting = false;
-        AddMessage("新通知:设置窗口已关闭", "Notifier");
-    };
-    settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
-    settingForm.Show();
-};
+                var settingForm = new Set(sets);
+                settingForm.FormClosed += (_, __) =>
+                {
+                    on_setting = false;
+                    resets();
+                    AddMessage("新通知:设置窗口已关闭", "Notifier");
+                };
+                settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
+                settingForm.Show();
+                
+            };
             menu.Items.Add(setting);
+
             menu.Items.Add(new Forms.ToolStripSeparator());
             var exit = new Forms.ToolStripMenuItem("退出");
             exit.Click += (_, __) => Shutdown();
@@ -347,8 +336,7 @@ namespace Notifier
             var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
                 ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
             // pass along best-effort process identifier for bottom-right display
-            EnsureMainWindow();
-            _currentToastWindow!.AddMessage(text, toast.ProcessName);
+            AddMessage(text, toast.ProcessName);
         }
 
         public void OnMessagesHaveBeenCleared()
@@ -498,6 +486,14 @@ private async Task TogglePackagedAutoStart()
             try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch (Exception ex) { Logger.Error("停止监听时异常", ex); }
             try { _notifyIcon?.Dispose(); } catch (Exception ex) { Logger.Error("释放托盘图标时异常", ex); }
             base.OnExit(e);
+        }
+        private void resets()
+        {
+            Config.IsMainWindowMiddle = sets.is_middle;
+            Config.MainWindowTop = sets.window_top;
+            Config.MainWindowOpacity = sets.opacity;
+            if (!sets.is_middle)
+                Config.MainWindowLeft = sets.window_left;
         }
     }
 }
