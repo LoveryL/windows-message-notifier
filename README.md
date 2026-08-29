@@ -18,9 +18,9 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 
 ## 📸 预览截图(部分) | Screenshots
 
-| 通知弹窗效果 | 一体化设计 | 消息汇总面板及设置面板 |
-|:---:|:---:|:---:|
-| <img width="400" alt="Toast Popup" src="https://github.com/user-attachments/assets/e0fa82b3-46a0-4a32-8161-189f7424db8f" /> | <img width="600" alt="Message Summary" src="https://github.com/user-attachments/assets/ec782889-d8f8-4296-8b90-a03e4025276f" /> |<img width="616" height="684" alt="QQ20260730-152238" src="https://github.com/user-attachments/assets/243669ad-46bd-4ce5-b2ae-bab1af565eed" />|
+| 通知弹窗效果 | 一键唤起 | 一体化设计 | Q弹的动画效果 |
+|:---:|:---:|:---:|:---:|
+| <img width="1280" height="718" alt="QQ20260828-121206" src="https://github.com/user-attachments/assets/b5dfa145-769b-4d56-a034-0e59c7e03696" />|<img width="1280" height="718" alt="QQ20260828-121309" src="https://github.com/user-attachments/assets/ca7a2945-7dc8-40b6-b202-72913bc886dd" />|<img width="368" height="314" alt="QQ20260828-121543" src="https://github.com/user-attachments/assets/1f03ce64-3883-4f47-b4e2-848c4db3b39a" />|<img width="1280" height="718" alt="QQ20260828-122205" src="https://github.com/user-attachments/assets/f6effd9f-b621-45d0-9863-fb04b04dd403" />|
 
 ---
 
@@ -35,7 +35,7 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 | 🔄 **开机自启** | 支持通过注册表配置开机自启，一键开关 | One-click toggle for auto-start via Windows Registry |
 | ✨ **通知管理** | 支持按标题批量清除通知，也可逐条删除并同步清除系统通知中心中的记录 | Clear notifications by title or remove individual items with sync to the system notification center |
 | 🚫 **智能过滤** | 自动过滤来自微信等特定应用的通知，避免重复捕获 | Automatically filters out notifications from specific apps like WeChat |
-| 🧹 **极致性能** |文件大小仅26mb,在i3-4130,HD4400,4G RAM,Windows 10 21H2 IoT企业版LTSC运行环境下平均CPU占用<1%，内存占用<70mb，GPU占用为0（连续运行24h），当不停人为刷新UI达到CPU占用25%，GPU占用26%峰值
+| 🧹 **极致性能** |文件大小仅26mb,在i3-4130,HD4400,4G RAM,Windows 10 21H2 IoT企业版LTSC运行环境下平均CPU占用<1%，内存占用<70mb，GPU占用为0（连续运行24h），当不停人为刷新UI达到CPU占用25%，GPU占用26%峰值|Please using translator because I'm tired |
 ---
 
 ## 🏗 项目结构 | Project Structure
@@ -170,7 +170,6 @@ dotnet run --configuration Release
 
 ## ⚠️ 注意事项 | Notes
 
-- 🚧 **项目处于早期开发阶段**
 - 💻 需要 **Windows 10 (Build 1809+)** 或 **Windows 11** 以获得 Toast 通知支持
 - 🔐 首次运行需要 **用户授权通知访问权限**
 - 📌 当前已过滤微信通知
@@ -178,6 +177,11 @@ dotnet run --configuration Release
   - 通知访问权限是否已授予
   - Windows 版本是否满足最低要求
   - 防病毒软件是否拦截了应用
+-一键唤起功能仅支持：
+  - 在任务栏的程序
+  - 有aumid的程序
+- 当前已知bug:
+  - 自启功能在打包模式下可能出现问题
 
 ---
 
@@ -193,4 +197,4 @@ dotnet run --configuration Release
 
 ---
 
-> ⭐ 如果这个项目对你有帮助，欢迎给它一个 Star！Made with Deepseek and Copilot
+> ⭐ 如果这个项目对你有帮助，欢迎给我一个 Star!
