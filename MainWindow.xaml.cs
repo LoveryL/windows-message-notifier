@@ -65,7 +65,7 @@ namespace Notifier
         private DispatcherTimer? _hideTimer;
         private ObservableCollection<ToastMessageGroup> _messageGroups = new();
         private bool _isClosingAnimation = false;
-        private bool _isClosed = false;  // ✅ 新增：标记窗口已关闭
+        private bool _isClosed = false;  
 
         // 消息队列
         private readonly System.Collections.Generic.List<QueuedMessage> _messageQueue = new();
@@ -81,7 +81,6 @@ namespace Notifier
         private DispatcherTimer _ctrlPollTimer;
         private bool _ctrlHeld = false;
 
-        // ✅ 新增：管理动画资源，防止内存泄漏
         private Storyboard? _currentFadeInAnimation;
         private Storyboard? _currentFadeOutAnimation;
 
@@ -114,14 +113,13 @@ namespace Notifier
 
             // Display timer
             _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _displayTimer.Tick += OnDisplayTimerTick;  // ✅ 使用命名方法便于取消订阅
+            _displayTimer.Tick += OnDisplayTimerTick;  
 
             // Polling timer
             _ctrlPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
             _ctrlPollTimer.Tick += CheckCtrlState;
             _ctrlPollTimer.Start();
 
-            // ✅ 订阅窗口关闭事件，清理资源
             this.Closed += OnWindowClosed;
         }
 
@@ -149,7 +147,6 @@ namespace Notifier
         #region 动画辅助方法
         private async Task FadeOutAsync()
         {
-            // ✅ 清理旧的动画
             if (_currentFadeOutAnimation != null)
             {
                 _currentFadeOutAnimation.Stop();
@@ -202,56 +199,81 @@ namespace Notifier
         #endregion
 
         #region 显示逻辑
+        private void StopDisplayTimer()
+        {
+            try
+            {
+                if (_displayTimer != null && _displayTimer.IsEnabled)
+                    _displayTimer.Stop();
+            }
+            catch { }
+        }
+
+        private async Task HideWindowAndResetState(bool clearQueue = true)
+        {
+            if (_isClosed || _isClosingAnimation)
+                return;
+
+            StopDisplayTimer();
+            _pausedRemaining = null;
+            _isDisplaying = false;
+            if (!_isClosed)
+            {
+                await FadeOutAsync();
+                Visibility = Visibility.Collapsed;
+                RevokeTopmost();
+            }
+            if (clearQueue)
+            {
+                _messageQueue.Clear();
+                _messageGroups.Clear();
+            }
+        }
+
         private async void OnDisplayTimerTick(object? sender, EventArgs e)
         {
-            // ✅ 如果窗口已关闭或正在关闭，停止处理
-            if (_isClosed || _isClosingAnimation) return;
+            if (_isClosed || _isClosingAnimation)
+                return;
 
-            // stop timer
-            _displayTimer.Stop();
+            StopDisplayTimer();
 
             if (_messageQueue.Count == 0)
             {
-                _isDisplaying = false;
+                await HideWindowAndResetState(true);
                 return;
             }
 
             if (_messageQueue.Count > 1)
             {
-                // transition to next message
                 await FadeOutAsync();
 
-                // remove the shown message
                 if (_messageQueue.Count > 0)
                     _messageQueue.RemoveAt(0);
 
                 ShowCurrentQueueHeadImmediate();
-
                 await FadeInAsync();
 
-                // start timer for next message
+                _isDisplaying = true;
                 StartDisplayTimer();
+                return;
             }
-            else
-            {
-                // last message: fade out and hide
-                await FadeOutAsync();
 
-                _messageQueue.Clear();
-                _messageGroups.Clear();
-                _isDisplaying = false;
-                PlaySlideOutAnimationAndHide();
-            }
+            _messageQueue.Clear();
+            _messageGroups.Clear();
+            await HideWindowAndResetState(false);
         }
 
         private async void StartDisplaying()
         {
-            if (_isClosed || _isClosingAnimation) return;
-            if (_messageQueue.Count == 0) return;
+            if (_isClosed || _isClosingAnimation)
+                return;
 
+            if (_messageQueue.Count == 0)
+                return;
+
+            StopDisplayTimer();
             _isDisplaying = true;
-
-            Visibility = Visibility.Visible;
+            
             ShowNoActivateTopmost();
 
             await Dispatcher.InvokeAsync(() =>
@@ -261,8 +283,7 @@ namespace Notifier
             }, DispatcherPriority.Normal);
 
             await FadeInAsync();
-
-            // start timer after fade-in completes
+            Visibility = Visibility.Visible;
             StartDisplayTimer();
         }
 
@@ -272,14 +293,15 @@ namespace Notifier
             var head = _messageQueue.FirstOrDefault();
             if (head != null)
             {
-                var group = new ToastMessageGroup 
-                { 
-                    Title = head.Title, 
-                    ProcessName = head.ProcessName, 
-                    Time = head.Time 
+                var group = new ToastMessageGroup
+                {
+                    Title = head.Title,
+                    ProcessName = head.ProcessName,
+                    Time = head.Time
                 };
                 if (!string.IsNullOrEmpty(head.Body))
                     group.Bodies.Add(head.Body);
+
                 _messageGroups.Add(group);
             }
         }
@@ -289,6 +311,17 @@ namespace Notifier
             var head = _messageQueue.FirstOrDefault();
             return head == null ? null : (string.IsNullOrWhiteSpace(head.Title) ? "新通知" : head.Title);
         }
+        #endregion
+
+        #region 动画
+        private void PlaySlideOutAnimationAndHide()
+        {
+            if (_isClosed || _isClosingAnimation)
+                return;
+
+            _ = HideWindowAndResetState(true);
+        }
+
         #endregion
 
         #region 无焦点显示 / 隐藏
@@ -308,62 +341,6 @@ namespace Notifier
                 SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
-        }
-        #endregion
-
-        #region 动画
-        private void PlaySlideInAnimation()
-        {
-            if (Resources["FadeInStoryboard"] is Storyboard fadeIn)
-                fadeIn.Begin(this);
-            else if (Resources["SlideInAnimation"] is Storyboard sb)
-                sb.Begin();
-
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
-            var data = new WINCOMPATTRDATA 
-            { 
-                nAttribute = 19, 
-                pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), 
-                ulDataSize = Marshal.SizeOf(accent) 
-            };
-            Marshal.StructureToPtr(accent, data.pData, false);
-            SetWindowCompositionAttribute(hwnd, ref data);
-            Marshal.FreeHGlobal(data.pData);
-        }
-
-        private void PlaySlideOutAnimationAndHide()
-        {
-            // 如果窗口已关闭，直接返回
-            if (_isClosed) return;
-
-            if (Resources["FadeOutStoryboard"] is Storyboard fadeOut)
-            {
-                fadeOut = fadeOut.Clone();
-                fadeOut.Completed -= OnSlideOutCompleted;
-                fadeOut.Completed += OnSlideOutCompleted;
-                fadeOut.Begin(this);
-            }
-            else if (Resources["SlideOutAnimation"] is Storyboard sb)
-            {
-                sb.Completed -= OnSlideOutCompleted;
-                sb.Completed += OnSlideOutCompleted;
-                sb.Begin();
-            }
-            else
-            {
-                Visibility = Visibility.Collapsed;
-                RevokeTopmost();
-            }
-        }
-
-        private void OnSlideOutCompleted(object? sender, EventArgs e)
-        {
-            // ✅ 防止在关闭后操作
-            if (_isClosed) return;
-            
-            Visibility = Visibility.Collapsed;
-            RevokeTopmost();
         }
         #endregion
 
@@ -424,10 +401,8 @@ namespace Notifier
                 fadeIn.Begin(this);
         }
 
-        // ✅ 修复：窗口关闭逻辑，防止死循环
         private void Window_Closing(object sender, CancelEventArgs e)
         {
-            // 如果已经标记为正在关闭，允许真正关闭
             if (_isClosingAnimation)
             {
                 e.Cancel = false;
@@ -442,7 +417,7 @@ namespace Notifier
             try 
             { 
                 _displayTimer?.Stop();
-                _displayTimer.Tick -= OnDisplayTimerTick;  // ✅ 取消订阅
+                _displayTimer.Tick -= OnDisplayTimerTick;  
             } 
             catch { }
             
@@ -451,7 +426,7 @@ namespace Notifier
             try 
             { 
                 _ctrlPollTimer?.Stop();
-                _ctrlPollTimer.Tick -= CheckCtrlState;  // ✅ 取消订阅
+                _ctrlPollTimer.Tick -= CheckCtrlState;
             } 
             catch { }
 
@@ -470,7 +445,6 @@ namespace Notifier
                 fadeOut = fadeOut.Clone();
                 fadeOut.Completed += (_, __) =>
                 {
-                    // ✅ 在 UI 线程上执行关闭，重置标志
                     Dispatcher.Invoke(() =>
                     {
                         _isClosingAnimation = false;
@@ -490,7 +464,6 @@ namespace Notifier
             }
         }
 
-        // ✅ 新增：窗口关闭后的清理
         private void OnWindowClosed(object? sender, EventArgs e)
         {
             _isClosed = true;
@@ -520,8 +493,11 @@ namespace Notifier
 
                 _hideTimer.Tick += (_, __) =>
                 {
+                    if (_isClosed || _isClosingAnimation)
+                        return;
+
                     _hideTimer.Stop();
-                    PlaySlideOutAnimationAndHide();
+                    _ = HideWindowAndResetState(true);
                 };
             }
             else
@@ -541,7 +517,9 @@ namespace Notifier
                 _displayTimer.Interval = _displayInterval;
                 _displayDeadline = DateTime.Now + _displayInterval;
                 _pausedRemaining = null;
-                _displayTimer.Start();
+
+                if (!_isClosed && !_isClosingAnimation)
+                    _displayTimer.Start();
             }
             catch { }
         }
@@ -554,7 +532,6 @@ namespace Notifier
 
         private void CheckCtrlState(object? sender, EventArgs e)
         {
-            // ✅ 如果窗口已关闭，停止检测
             if (_isClosed) return;
             if (!_isDisplaying || Visibility != Visibility.Visible) return;
 
@@ -776,11 +753,11 @@ namespace Notifier
             {
                 if (!_isDisplaying || _isClosed) return;
 
-                try { _displayTimer.Stop(); } catch { }
+                StopDisplayTimer();
 
                 if (_messageQueue.Count == 0)
                 {
-                    _isDisplaying = false;
+                    await HideWindowAndResetState(true);
                     return;
                 }
 
@@ -792,8 +769,9 @@ namespace Notifier
                         _messageQueue.RemoveAt(0);
 
                     ShowCurrentQueueHeadImmediate();
-
                     await FadeInAsync();
+
+                    _isDisplaying = true;
 
                     if (_ctrlHeld)
                     {
@@ -803,16 +781,13 @@ namespace Notifier
                     {
                         StartDisplayTimer();
                     }
-                }
-                else
-                {
-                    await FadeOutAsync();
 
-                    _messageQueue.Clear();
-                    _messageGroups.Clear();
-                    _isDisplaying = false;
-                    PlaySlideOutAnimationAndHide();
+                    return;
                 }
+
+                _messageQueue.Clear();
+                _messageGroups.Clear();
+                await HideWindowAndResetState(false);
             }
             catch { }
         }

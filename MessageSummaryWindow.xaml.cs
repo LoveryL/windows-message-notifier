@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Diagnostics;
 using System.Windows.Media.Animation;
+using System.Threading.Tasks;
 
 namespace Notifier
 {
@@ -250,17 +251,27 @@ namespace Notifier
                 .Distinct()
                 .ToList();
 
-            foreach (var m in ToastMessageStore.GetAll().ToList())
-                ToastMessageStore.RemoveAndSync(m);
+            // 执行耗时的删除与通知移除到后台线程，避免阻塞 UI
+            await Task.Run(() =>
+            {
+                foreach (var m in ToastMessageStore.GetAll().ToList())
+                    ToastMessageStore.RemoveAndSync(m);
+            });
 
+            // 回到 UI 线程更新界面
             RefreshMessages();
             ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
 
-            foreach (var a in aumids)
+            // 并行唤醒各应用（在后台执行）
+            var activationTasks = aumids
+                .Select(a => AppActivator.active_app(a!))
+                .ToArray();
+
+            var results = await Task.WhenAll(activationTasks);
+            for (int i = 0; i < results.Length; i++)
             {
-                var (ok, msg) = await AppActivator.active_app(a!);
-                if (!ok)
-                    Debug.WriteLine($"[AppActivator] 唤醒失败：{msg}");
+                if (!results[i].Item1) // (ok, msg)
+                    Debug.WriteLine($"[AppActivator] 唤醒失败：{results[i].Item2}");
             }
         }
         #endregion

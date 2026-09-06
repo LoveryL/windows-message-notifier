@@ -1,37 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Package IgnorableNamespaces="uap uap10 uap5 mp"
+<Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
-  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest">
-  <Identity Name="LoveryL.Notifier" Publisher="CN=Levoy" Version="1.2.0.0" ProcessorArchitecture="neutral" />
+  IgnorableNamespaces="uap uap5 rescap">
+
+  <Identity
+    Name="LoveryL.Notifier"
+    Publisher="CN=Levoy"
+    Version="1.2.0.0" />
+
   <Properties>
     <DisplayName>Notifier</DisplayName>
     <PublisherDisplayName>Levoy</PublisherDisplayName>
-    <Logo>Resources\icon_normal.png</Logo>
-
+    <Logo>Assets\icon_normal.png</Logo>
   </Properties>
+
   <Resources>
-    <Resource Language="en-us" />
+    <Resource Language="en-US" />
   </Resources>
+
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
   </Dependencies>
+
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
     <rescap:Capability Name="unvirtualizedResources" />
-<rescap:Capability Name="userNotificationListener" />
-    <rescap:Capability Name="accessNotification" />  
+    <rescap:Capability Name="userNotificationListener" />
+    <rescap:Capability Name="accessNotification" />
   </Capabilities>
+
   <Applications>
-    <Application Id="Notifier" Executable="Notifier.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
-      <uap:VisualElements AppListEntry="default" DisplayName="Notifier" Description="Notifier" BackgroundColor="transparent" Square150x150Logo="Resources\icon_150.png" Square44x44Logo="Resources\icon_44.png" />
+    <Application Id="Notifier"
+                 Executable="Notifier.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Notifier"
+        Description="Notifier"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\icon_150.png"
+        Square44x44Logo="Assets\icon_44.png"
+        AppListEntry="default" />
       <Extensions>
         <uap5:Extension Category="windows.startupTask">
-          <uap5:StartupTask TaskId="NotifierAutoStart" Enabled="true" DisplayName="Notifier" />
+          <uap5:StartupTask
+            TaskId="NotifierAutoStart"
+            Enabled="true"
+            DisplayName="Notifier" />
         </uap5:Extension>
       </Extensions>
     </Application>
