@@ -1,13 +1,13 @@
 using System;
 using System.Globalization;
-using System.Windows.Data;
+using Avalonia.Data.Converters;
 
 namespace Notifier
 {
     // Converts various Play/Pause text forms (emoji, words) into a normalized state string: "Play", "Pause", or "Unknown".
     public class PlayPauseTextToStateConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             var s = value as string ?? string.Empty;
             if (string.IsNullOrWhiteSpace(s)) return "Unknown";
@@ -23,7 +23,7 @@ namespace Notifier
             return "Unknown";
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
         }

@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Notifier"
+        x:Class="Notifier.MainWindow"
+        Title="Rectangle Window"
+        Width="375" Height="75"
+        MinWidth="160" MinHeight="40"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Topmost="True"
+        SystemDecorations="None">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Notifier/ThemeResources.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid x:Name="RootGrid" Opacity="0">
+        <Border x:Name="OuterBorder"
+                CornerRadius="10"
+                Background="#ACFFFFFF"
+                BorderBrush="{DynamicResource GlassBorderBrush}"
+                BorderThickness="1"
+                Padding="8"
+                Margin="6"
+                BoxShadow="0 0 24 0 #00000040">
+            <ItemsControl x:Name="MessageList" IsHitTestVisible="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Vertical" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="local:ToastMessageGroup">
+                        <Grid Width="347" VerticalAlignment="Top">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="34" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                <Path Data="{DynamicResource IconBell}" Fill="{DynamicResource LiquidGlassForeground}" Stretch="Uniform" Width="16" Height="16" Opacity="0.95" />
+                            </Viewbox>
+
+                            <Grid Grid.Column="1" Margin="6,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0"
+                                           Text="{Binding Title}"
+                                           FontSize="{DynamicResource FontSizeTitle}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource LiquidGlassForeground}"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap" />
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding Bodies}" IsHitTestVisible="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="{DynamicResource FontSizeBody}"
+                                                       Foreground="#AA000000"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="NoWrap" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+
+                            <Grid Grid.Column="2" Width="85" Margin="8,4,4,0" HorizontalAlignment="Right">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0"
+                                           Text="{Binding Time, StringFormat='{}{0:t}'}"
+                                           Foreground="{DynamicResource LiquidGlassForeground}"
+                                           FontSize="{DynamicResource FontSizeCaption}"
+                                           HorizontalAlignment="Right" />
+                                <TextBlock Grid.Row="1"
+                                           Text="{Binding ProcessName}"
+                                           Foreground="#888888"
+                                           FontSize="10"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom"
+                                           Margin="0,2,0,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           FlowDirection="RightToLeft" />
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+    </Grid>
+</Window>

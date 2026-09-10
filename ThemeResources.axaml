@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=netstandard">
+
+    <Color x:Key="LiquidGlassBackgroundColor">#67FFFFFF</Color>
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#67FFFFFF" />
+    <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#000000" />
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="#40FFFFFF" />
+    <SolidColorBrush x:Key="GlassShadowBrush" Color="#000000" Opacity="0.25" />
+    <sys:Double x:Key="FontSizeTitle">13</sys:Double>
+    <sys:Double x:Key="FontSizeBody">11</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">10</sys:Double>
+
+    <FontFamily x:Key="AppFontFamily">Segoe UI Variable, Segoe UI, "Microsoft YaHei", sans-serif</FontFamily>
+
+    <Geometry x:Key="IconBell">M12,2 C9,2 7,4 7,7 L7,15 L5,17 L19,17 L17,15 L17,7 C17,4 15,2 12,2 Z M12,20 C13.1,20 14,19.1 14,18 L10,18 C10,19.1 10.9,20 12,20 Z</Geometry>
+    <Geometry x:Key="IconSpeaker">M3,9 L7,9 L11,5 L11,19 L7,15 L3,15 Z M15,8 C16.66,9.33 16.66,14.66 15,16</Geometry>
+    <Geometry x:Key="IconSun">M12,8 A4,4 0 1,0 12,16 A4,4 0 1,0 12,8 Z</Geometry>
+    <Geometry x:Key="IconPrev">M14,6 L14,18 L6,12 Z M18,6 L18,18 L16,18 L16,6 Z</Geometry>
+    <Geometry x:Key="IconPlay">M6,5 L18,12 L6,19 Z</Geometry>
+    <Geometry x:Key="IconPause">M7,5 H11 V19 H7 Z M13,5 H17 V19 H13 Z</Geometry>
+    <Geometry x:Key="IconNext">M8,6 L8,18 L14,12 Z M16,6 L16,18 L18,18 L18,6 Z</Geometry>
+
+</ResourceDictionary>

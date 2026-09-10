@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using System.Windows;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
 
 namespace Notifier
 {
@@ -42,7 +44,7 @@ namespace Notifier
             }
             catch (Exception ex)
             {
-                BtnPlayPause.ToolTip = "SMTC 初始化失败: {ex.Message}";
+                global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, $"SMTC 初始化失败: {ex.Message}");
                 Debug.WriteLine($"SMTC 初始化失败: {ex.Message}");
                 // 静默失败，不影响主功能
             }
@@ -56,7 +58,7 @@ namespace Notifier
             if (_smtcController == null || !_smtcController.HasActiveSession())
             {
                 // 没有活跃会话，保持默认文本
-                BtnPlayPause.ToolTip = "暂无在播放的音频";
+                global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, "暂无在播放的音频");
                 PlayPauseIcon.Text = "\u25B6";
                 return;
             }
@@ -67,8 +69,7 @@ namespace Notifier
                 MediaInfo mediaInfo = await Task.Run(() => _smtcController.GetCurrentMediaInfo());
                 PlaybackState playbackState = await Task.Run(() => _smtcController.GetPlaybackStatus());
 
-                // 更新 UI（必须在 UI 线程）
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     // 只有标题发生变化时才更新（避免不必要的闪烁）
                     if (!string.IsNullOrEmpty(mediaInfo.Title) && mediaInfo.Title != _lastTitle)
@@ -106,13 +107,13 @@ namespace Notifier
                 case PlaybackState.Playing:
                     // Use plain unicode glyphs (no emoji variation selectors) to avoid colored/black-box rendering
                     PlayPauseIcon.Text = "\u23F8";  // ⏸ pause symbol (monochrome)
-                    BtnPlayPause.ToolTip = "暂停";
+                    global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, "暂停");
                     break;
                 //case PlaybackState.Paused:
                 //case PlaybackState.Stopped:
                 default:
                     PlayPauseIcon.Text = "\u25B6";  // ▶ play symbol (monochrome)
-                    BtnPlayPause.ToolTip = "播放";
+                    global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, "播放");
                     break;
             }
 
@@ -123,12 +124,7 @@ namespace Notifier
         /// </summary>
         private void OnSmtcPlaybackStateChanged(PlaybackState state)
         {
-            Dispatcher.Invoke(() =>
-            {
-                
-                Dispatcher.BeginInvoke(new Action(() => TryUpdateMediaUI()),
-                    System.Windows.Threading.DispatcherPriority.Background);
-            });
+            Dispatcher.UIThread.Post(() => TryUpdateMediaUI());
         }
 
         /// <summary>
@@ -144,7 +140,7 @@ namespace Notifier
             else
             {
                 // 没有媒体会话，恢复默认显示
-                Dispatcher.Invoke(() =>
+                Dispatcher.UIThread.Post(() =>
                 {
                     _lastTitle = string.Empty;
                     SongTitle.Text = "未在播放";
@@ -157,7 +153,7 @@ namespace Notifier
         /// <summary>
         /// 上一首按钮点击处理（async void + Task.Run 避免死锁）
         /// </summary>
-        private async void OnPreviousClicked(object sender, RoutedEventArgs e)
+        private async void OnPreviousClicked(object? sender, RoutedEventArgs e)
         {
             if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
             _smtcBusy = true;
@@ -183,14 +179,14 @@ namespace Notifier
         /// <summary>
         /// 播放/暂停按钮点击处理（async void + Task.Run 避免死锁）
         /// </summary>
-        private async void OnPlayPauseClicked(object sender, RoutedEventArgs e)
+        private async void OnPlayPauseClicked(object? sender, RoutedEventArgs e)
         {
             if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
             _smtcBusy = true;
            try
 {
     await Task.Run(() => _smtcController.TogglePlayPause());
-    await Dispatcher.InvokeAsync(() => TryUpdateMediaUI());
+    await Dispatcher.UIThread.InvokeAsync(() => TryUpdateMediaUI());
 }
 catch (Exception ex)
 {
@@ -205,7 +201,7 @@ finally
         /// <summary>
         /// 下一首按钮点击处理（async void + Task.Run 避免死锁）
         /// </summary>
-        private async void OnNextClicked(object sender, RoutedEventArgs e)
+        private async void OnNextClicked(object? sender, RoutedEventArgs e)
         {
             if (_smtcController == null || !_smtcInitialized || _smtcBusy) return;
             _smtcBusy = true;

@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Interop;
 using System.Diagnostics;
-using System.Windows.Media.Animation;
+using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace Notifier
 {
@@ -20,92 +20,39 @@ namespace Notifier
         internal bool _isClosing;
         private bool _allowDeactivate;
 
-        #region Effect
-        [DllImport("user32.dll")]
-        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct ACCENTPOLICY
-        {
-            public int nAccentState;
-            public int nFlags;
-            public int nColor;
-            public int nAnimationId;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct WINCOMPATTRDATA
-        {
-            public int nAttribute;
-            public IntPtr pData;
-            public int ulDataSize;
-        }
-        #endregion
-
         public MessageSummaryWindow()
         {
             InitializeComponent();
 
-            // Apply configured opacity if available
             try { if (App.Config != null && !double.IsNaN(App.Config.MessageSummaryOpacity)) Opacity = App.Config.MessageSummaryOpacity; } catch { }
 
-            Loaded += OnFirstLoaded;
+            this.Opened += OnFirstLoaded;
             App.OnNewToastDetected += OnNewToast;
             RefreshMessages();
+
+            this.Activated += (_, __) =>
+            {
+                if (_allowDeactivate)
+                    ReportFocusState?.Invoke(true);
+            };
+
+            this.Deactivated += (_, __) =>
+            {
+                if (!_allowDeactivate) return;
+                Dispatcher.UIThread.Post(() => ReportFocusState?.Invoke(false));
+            };
         }
 
-        #region 入场
-        private void OnFirstLoaded(object? sender, RoutedEventArgs e)
+        private void OnFirstLoaded(object? sender, EventArgs e)
         {
             PositionWindow();
-
-            if (Resources["SlideInAnimation"] is Storyboard sb)
-            {
-                sb.Completed += (_, __) =>
-                {
-                    _allowDeactivate = true;
-                    ReportFocusState?.Invoke(true);
-                    var hwnd = new WindowInteropHelper(this).Handle;
-                    var accent = new ACCENTPOLICY { nAccentState = 3, nColor =0 };
-                    var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
-                    Marshal.StructureToPtr(accent, data.pData, false);
-                    SetWindowCompositionAttribute(hwnd, ref data);
-                    Marshal.FreeHGlobal(data.pData);
-                };
-                sb.Begin(this);
-            }
-            else
-            {
-                _allowDeactivate = true;
-                ReportFocusState?.Invoke(true);
-            }
-
-            Show();
-            Activate();
-            Focus();
-        }
-        #endregion
-
-        #region 焦点
-        protected override void OnActivated(EventArgs e)
-        {
-            base.OnActivated(e);
-            if (_allowDeactivate)
-                ReportFocusState?.Invoke(true);
+            _allowDeactivate = true;
+            RootGrid.Opacity = 1;
+            if (RootGrid.RenderTransform is TranslateTransform translate)
+                translate.X = 0;
+            ReportFocusState?.Invoke(true);
         }
 
-        protected override void OnDeactivated(EventArgs e)
-        {
-            base.OnDeactivated(e);
-            if (!_allowDeactivate) return;
-
-            Dispatcher.BeginInvoke(() =>
-                ReportFocusState?.Invoke(false),
-                System.Windows.Threading.DispatcherPriority.Background);
-        }
-        #endregion
-
-        #region App 调用
         public void RequestCloseFromApp()
             => InternalRequestClose();
 
@@ -113,18 +60,8 @@ namespace Notifier
         {
             if (_isClosing) return;
             _isClosing = true;
-
-            if (Resources["SlideOutAnimation"] is Storyboard sb)
-            {
-                sb.Completed -= SlideOut_Completed;
-                sb.Completed += SlideOut_Completed;
-                sb.Begin(this);
-            }
-            else SafeClose();
+            SafeClose();
         }
-
-        private void SlideOut_Completed(object? sender, EventArgs e)
-            => SafeClose();
 
         private void SafeClose()
         {
@@ -132,32 +69,23 @@ namespace Notifier
             WindowClosed?.Invoke();
             Close();
         }
-        #endregion
 
-        #region 数据 & 清空
-        private void OnNewToast(ToastData t) => Dispatcher.Invoke(RefreshMessages);
+        private void OnNewToast(ToastData t) => Dispatcher.UIThread.Post(RefreshMessages);
 
-        public void RefreshMessages()
-            => RefreshMessageList(ToastMessageStore.GetAll());
-
+        public void RefreshMessages() => RefreshMessageList(ToastMessageStore.GetAll());
 
         private static string GetSourceAppLabel(ToastData m)
         {
-
             if (!string.IsNullOrWhiteSpace(m.AppName))
                 return m.AppName!;
-
 
             if (!string.IsNullOrWhiteSpace(m.Aumid))
             {
                 var a = m.Aumid!;
-
                 int bang = a.IndexOf('!');
                 var head = bang > 0 ? a.Substring(0, bang) : a;
-
-
                 int under = head.LastIndexOf('_');
-                if (under > 0 && head.Length - under <= 14) //  heuristically a hash suffix
+                if (under > 0 && head.Length - under <= 14)
                     head = head.Substring(0, under);
 
                 return head;
@@ -168,7 +96,6 @@ namespace Notifier
 
         private void RefreshMessageList(IEnumerable<ToastData> msgs)
         {
-
             var groups = new Dictionary<string, (List<string> Bodies, string SourceApp, string? SampleAumid)>();
 
             foreach (var m in msgs)
@@ -199,8 +126,7 @@ namespace Notifier
             StatusText.Text = groups.Count > 0 ? $"共 {groups.Count} 条未读" : "暂无未读通知";
         }
 
-
-        private async void MessageItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private async void MessageItem_MouseLeftButtonDown(object? sender, PointerPressedEventArgs e)
         {
             if (sender is not Border { Tag: string title })
                 return;
@@ -214,7 +140,7 @@ namespace Notifier
 
             ToastMessageStore.RemoveByTitleAndSync(title);
             RefreshMessages();
-            ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
+            ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared();
 
             if (!string.IsNullOrWhiteSpace(aumid))
             {
@@ -222,7 +148,6 @@ namespace Notifier
                 if (!ok)
                 {
                     Debug.WriteLine($"[AppActivator] 唤醒失败：{msg}");
-                    // fallback: try to bring a running process forward by app name
                     if (!string.IsNullOrWhiteSpace(target?.AppName))
                     {
                         var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
@@ -231,19 +156,15 @@ namespace Notifier
                     }
                 }
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(target?.AppName))
             {
-                // 没有 AUMID 时也尝试按应用名置前
-                if (!string.IsNullOrWhiteSpace(target?.AppName))
-                {
-                    var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
-                    if (!ok2)
-                        Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
-                }
+                var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
+                if (!ok2)
+                    Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
             }
         }
 
-        private async void ClearButton_Click(object sender, RoutedEventArgs e)
+        private async void ClearButton_Click(object? sender, RoutedEventArgs e)
         {
             var aumids = ToastMessageStore.GetAll()
                 .Select(m => m.Aumid)
@@ -251,42 +172,28 @@ namespace Notifier
                 .Distinct()
                 .ToList();
 
-            // 执行耗时的删除与通知移除到后台线程，避免阻塞 UI
             await Task.Run(() =>
             {
                 foreach (var m in ToastMessageStore.GetAll().ToList())
                     ToastMessageStore.RemoveAndSync(m);
             });
 
-            // 回到 UI 线程更新界面
             RefreshMessages();
-            ((App)System.Windows.Application.Current).OnMessagesHaveBeenCleared();
-
-            // 并行唤醒各应用（在后台执行）
-            var activationTasks = aumids
-                .Select(a => AppActivator.active_app(a!))
-                .ToArray();
-
-            var results = await Task.WhenAll(activationTasks);
-            for (int i = 0; i < results.Length; i++)
-            {
-                if (!results[i].Item1) // (ok, msg)
-                    Debug.WriteLine($"[AppActivator] 唤醒失败：{results[i].Item2}");
-            }
+            ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared();
         }
-        #endregion
 
-        #region 布局
         private void PositionWindow()
         {
-            UpdateLayout();
-            double h = ActualHeight > 0 ? ActualHeight : Height;
-            var s = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea;
-            if (s == null) return;
-            Top = s.Value.Top + Math.Max(20, (s.Value.Height - h) * 0.03);
-            Left = s.Value.Left + 18;
+            var screen = Screens.Primary;
+            if (screen == null) return;
+
+            var workArea = screen.WorkingArea;
+            const int leftOffset = 18;
+            var top = workArea.Y + 20;
+            var left = workArea.X + leftOffset;
+
+            Position = new PixelPoint(left, top);
         }
-        #endregion
     }
 
 
