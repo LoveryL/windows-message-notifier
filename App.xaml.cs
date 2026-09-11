@@ -225,14 +225,14 @@ namespace Notifier
                 if (on_setting) return;
 
                 on_setting = true;
-                AddMessage("新通知:打开设置窗口", "Notifier");
+                AddMessage("设置", "打开设置窗口", "Notifier");
 
                 var settingForm = new Set(sets);
                 settingForm.FormClosed += (_, __) =>
                 {
                     on_setting = false;
                     resets();
-                    AddMessage("新通知:设置窗口已关闭", "Notifier");
+                    AddMessage("设置", "设置窗口已关闭", "Notifier");
                 };
                 settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
                 settingForm.Show();
@@ -274,17 +274,20 @@ namespace Notifier
 
         private void TryDismissPanel()
         {
-            if (_summaryWindow == null || _settingWindow == null)
+            var summaryWindow = _summaryWindow;
+            var settingWindow = _settingWindow;
+
+            if (summaryWindow == null || settingWindow == null)
                 return;
 
-            if (_summaryWindow._isClosing || _settingWindow._isClosing)
+            if (summaryWindow._isClosing || settingWindow._isClosing)
                 return;
 
-            bool anyWindowHasFocus = (_summaryWindow.IsActive || _settingWindow.IsActive || _summaryFocus || _settingFocus);
-            if (!anyWindowHasFocus && _summaryWindow.IsVisible && _settingWindow.IsVisible)
+            bool anyWindowHasFocus = (summaryWindow.IsActive || settingWindow.IsActive || _summaryFocus || _settingFocus);
+            if (!anyWindowHasFocus && summaryWindow.IsVisible && settingWindow.IsVisible)
             {
-                _summaryWindow.RequestCloseFromApp();
-                _settingWindow.RequestClose();
+                summaryWindow.RequestCloseFromApp();
+                settingWindow.RequestClose();
             }
         }
 
@@ -292,8 +295,11 @@ namespace Notifier
         {
             _summaryFocus = false;
             _settingFocus = false;
-            _summaryWindow = null;
-            _settingWindow = null;
+
+            if (_summaryWindow != null && !_summaryWindow.IsVisible)
+                _summaryWindow = null;
+            if (_settingWindow != null && !_settingWindow.IsVisible)
+                _settingWindow = null;
         }
 
         private async Task InitializeListenerAsync()
@@ -302,13 +308,13 @@ namespace Notifier
             var (ok, msg) = await _listener.InitializeAsync();
             if (!ok)
             {
-                AddMessage($"新信息:⚠ 监听失败：{msg}", "Notifier");
+                AddMessage("通知状态", $"⚠ 监听失败：{msg}", "Notifier");
                 Logger.Error($"监听初始化失败：{msg}");
                 return;
             }
             ToastMessageStore.Listener = _listener;
             _listener.OnToastDetected += OnToastDetected;
-            AddMessage("新信息:✅ 通知监听已启动", "Notifier");
+            AddMessage("通知状态", "✅ 通知监听已启动", "Notifier");
             Logger.Info("通知监听已启动");
         }
 
@@ -328,21 +334,19 @@ namespace Notifier
 
             Logger.Info($"检测到新通知 Title=\"{toast.Title}\" App=\"{toast.AppName}\" Aumid=\"{toast.Aumid}\"");
 
-            var text = !string.IsNullOrWhiteSpace(toast.Title) && !string.IsNullOrWhiteSpace(toast.Body)
-                ? $"{toast.Title}:{toast.Body}" : toast.Title ?? toast.Body ?? "新通知";
-            // pass along best-effort process identifier for bottom-right display
-            AddMessage(text, toast.ProcessName);
+            AddMessage(toast.Title, toast.Body, toast.ProcessName);
+        }
+
+        public void AddMessage(string title, string body, string processName = "")
+        {
+            EnsureMainWindow();
+            _currentToastWindow!.AddMessage(title, body, processName);
         }
 
         public void OnMessagesHaveBeenCleared()
         {
-            if (ToastMessageStore.UnreadCount <= 0) SetNormalIcon();
-        }
-
-        private void AddMessage(string text, string processName = "")
-        {
-            EnsureMainWindow();
-            _currentToastWindow!.AddMessage(text, processName);
+            if (ToastMessageStore.UnreadCount <= 0)
+                SetNormalIcon();
         }
 
         private void SetNormalIcon()
@@ -406,18 +410,18 @@ namespace Notifier
                     if (k.GetValue(AppName) != null)
                     {
                         k.DeleteValue(AppName, false);
-                        AddMessage("新信息:🔘 已关闭开机自启", "Notifier");
+                        AddMessage("开机自启", "🔘 已关闭开机自启", "Notifier");
                         Logger.Info("开机自启已关闭(注册表)");
                     }
                     else
                     {
                         k.SetValue(AppName, Environment.ProcessPath ?? "");
-                        AddMessage("新信息:🔘 已开启开机自启", "Notifier");
+                        AddMessage("开机自启", "🔘 已开启开机自启", "Notifier");
                         Logger.Info($"开机自启已开启(注册表) Path=\"{Environment.ProcessPath}\"");
                     }
                 }
             }
-            catch (Exception ex) { AddMessage($"新信息:❌ 自启失败：{ex.Message}", "Notifier"); }
+            catch (Exception ex) { AddMessage("开机自启", $"❌ 自启失败：{ex.Message}", "Notifier"); }
         }
 
         private static StartupTaskState StartupTaskGetSync()
@@ -446,22 +450,22 @@ namespace Notifier
             {
                 case StartupTaskState.Enabled:
                     task.Disable();
-                    AddMessage("新信息:🔘 已关闭开机自启", "Notifier");
+                    AddMessage("开机自启", "🔘 已关闭开机自启", "Notifier");
                     Logger.Info("开机自启已关闭(StartupTask)");
                     break;
                 case StartupTaskState.Disabled:
                     var r = await task.RequestEnableAsync();
-                    AddMessage(r == StartupTaskState.Enabled
-                        ? "新信息:🔘 已开启开机自启"
-                        : "新信息:⚠️ 用户未确认开启自启", "Notifier");
+                    AddMessage("开机自启",
+                        r == StartupTaskState.Enabled ? "🔘 已开启开机自启" : "⚠️ 用户未确认开启自启",
+                        "Notifier");
                     Logger.Info($"开机自启开启(StartupTask) 结果={r}");
                     break;
                 case StartupTaskState.DisabledByUser:
-                    AddMessage("新信息:⚠️ 已被你在任务管理器禁用，请到 设置→应用→启动 打开", "Notifier");
+                    AddMessage("开机自启", "⚠️ 已被你在任务管理器禁用，请到 设置→应用→启动 打开", "Notifier");
                     Logger.Warn("开机自启被用户禁用(DisabledByUser)");
                     break;
                 default:
-                    AddMessage("新信息:⚠️ 系统策略禁止自启", "Notifier");
+                    AddMessage("开机自启", "⚠️ 系统策略禁止自启", "Notifier");
                     Logger.Warn($"开机自启受系统策略限制 State={task.State}");
                     break;
             }

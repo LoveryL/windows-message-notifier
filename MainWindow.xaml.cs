@@ -51,13 +51,12 @@ namespace Notifier
             this.PointerPressed += OnMouseLeftClick;
         }
 
-        public void AddMessage(string text, string processName = "")
+        public void AddMessage(string title, string body, string processName = "")
         {
             if (_isClosed) return;
 
             Dispatcher.UIThread.Post(() =>
             {
-                var (title, body) = ParseMessage(text);
                 var t = string.IsNullOrWhiteSpace(title) ? "新通知" : title;
                 var b = string.IsNullOrWhiteSpace(body) ? "" : body;
 
@@ -334,18 +333,6 @@ namespace Notifier
             var workArea = screen.WorkingArea;
             var left = App.Config.IsMainWindowMiddle ? (workArea.Width - Width) / 2.0 : App.Config.MainWindowLeft;
             Position = new PixelPoint((int)Math.Round(left), (int)Math.Round(App.Config.MainWindowTop));
-        }
-
-        private static (string Title, string Body) ParseMessage(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-                return ("", "");
-
-            int idx = text.IndexOf(':');
-            if (idx > 0 && idx < text.Length - 1)
-                return (text[..idx].Trim(), text[(idx + 1)..].Trim());
-
-            return ("", text.Trim());
         }
     }
 }
