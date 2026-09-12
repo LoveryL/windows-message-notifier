@@ -24,6 +24,9 @@
     </Window.Resources>
 
     <Grid x:Name="RootGrid" Opacity="0">
+        <Grid.RenderTransform>
+            <TranslateTransform X="-420" />
+        </Grid.RenderTransform>
         <Border CornerRadius="14"
                 Background="{DynamicResource LiquidGlassBackground}"
                 BorderBrush="{DynamicResource GlassBorderBrush}"
@@ -79,8 +82,10 @@
                             <Button x:Name="BtnPlayPause" Width="48" Height="48" Margin="26,0" Background="Transparent" BorderThickness="0" ToolTip.Tip="暂停 / 播放">
                                 <Grid Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <TextBlock x:Name="PlayPauseIcon" Text="⏸" FontSize="20" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    <Path x:Name="PlayPausePlay" Data="{DynamicResource IconPlay}" Fill="{DynamicResource AccentBrush}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="True" />
-                                    <Path x:Name="PlayPausePause" Data="{DynamicResource IconPause}" Fill="{DynamicResource AccentBrush}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
+                                    <Path x:Name="PlayPausePlay" Data="{DynamicResource IconPlay}" Fill="{DynamicResource AccentBrush}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        IsVisible="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseToVisibilityConverter}, ConverterParameter=Play}" />
+                                    <Path x:Name="PlayPausePause" Data="{DynamicResource IconPause}" Fill="{DynamicResource AccentBrush}" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        IsVisible="{Binding Text, ElementName=PlayPauseIcon, Converter={StaticResource PlayPauseToVisibilityConverter}, ConverterParameter=Pause}" />
                                 </Grid>
                             </Button>
 

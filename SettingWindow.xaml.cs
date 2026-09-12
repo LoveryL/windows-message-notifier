@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace Notifier
@@ -70,11 +72,11 @@ namespace Notifier
             }
         }
 
-        private void OnFirstLoaded(object? sender, EventArgs e)
+        private async void OnFirstLoaded(object? sender, EventArgs e)
         {
             PositionWindow();
             _allowDeactivate = true;
-            RootGrid.Opacity = 1;
+            await AnimateShowAsync();
 
             VolumeSlider.ValueChanged += (_, _) =>
             {
@@ -104,11 +106,11 @@ namespace Notifier
             BtnNext.Click += OnNextClicked;
         }
 
-        public void RequestClose()
+        internal void RequestClose()
         {
             if (_isClosing) return;
             _isClosing = true;
-            SafeClose();
+            _ = RequestCloseAsync();
         }
 
         private void SafeClose()
@@ -119,19 +121,64 @@ namespace Notifier
             Close();
         }
 
+        private async Task RequestCloseAsync()
+        {
+            try { await AnimateHideAsync(); } catch { }
+            SafeClose();
+        }
+
+        private async Task AnimateShowAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = 0.0, toOpacity = 1.0;
+                double fromX = -420, toX = 0;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    if (RootGrid.RenderTransform is TranslateTransform tr)
+                        tr.X = fromX + (toX - fromX) * t;
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
+        private async Task AnimateHideAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = RootGrid.Opacity, toOpacity = 0.0;
+                double fromX = 0, toX = -420;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    if (RootGrid.RenderTransform is TranslateTransform tr)
+                        tr.X = fromX + (toX - fromX) * t;
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
         private void PositionWindow()
         {
             var screen = Screens.Primary;
             if (screen == null) return;
 
             var workArea = screen.WorkingArea;
-            const int leftOffset = 18;
-            const int panelWidth = 370;
-            const int horizontalGap = 18;
-            var top = workArea.Y + 20;
-            var left = workArea.X + leftOffset + panelWidth + horizontalGap;
+            var top = workArea.Y + (workArea.Height / 2) + 15;
+            var left = workArea.X + 15;
 
-            Position = new PixelPoint(left, top);
+            Position = new PixelPoint((int)Math.Round((double)left, 0, MidpointRounding.AwayFromZero), (int)Math.Round((double)top, 0, MidpointRounding.AwayFromZero));
         }
     }
 }

@@ -52,7 +52,10 @@
                                         Background="#14000000"
                                         Padding="12,8"
                                         Margin="0,4"
-                                        Tag="{Binding Title}">
+                                        Tag="{Binding Title}"
+                                        IsHitTestVisible="True"
+                                        Cursor="Hand"
+                                        PointerPressed="MessageItem_MouseLeftButtonDown">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Title}"
                                                    FontWeight="SemiBold"
@@ -75,13 +78,8 @@
                                                    Foreground="#777777"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,4,4,0"
-                                                   TextTrimming="CharacterEllipsis">
-                                            <TextBlock.IsVisible>
-                                                <MultiBinding Converter="{StaticResource NullToVisibilityConverter}">
-                                                    <Binding Path="SourceApp" />
-                                                </MultiBinding>
-                                            </TextBlock.IsVisible>
-                                        </TextBlock>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding SourceApp, Converter={StaticResource NullToVisibilityConverter}}" />
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -103,11 +101,13 @@
                         <Button x:Name="ClearButton"
                                 Grid.Column="1"
                                 Content="清除全部"
+                                Click="ClearButton_Click"
                                 Background="#D32F2F"
                                 Foreground="White"
                                 BorderThickness="0"
                                 FontSize="{DynamicResource FontSizeBody}"
-                                Padding="10,5" />
+                                Padding="10,5"
+                                Cursor="Hand" />
                     </Grid>
                 </Border>
             </Grid>

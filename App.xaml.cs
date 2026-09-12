@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
@@ -34,6 +35,7 @@ namespace Notifier
 
         private bool _summaryFocus;
         private bool _settingFocus;
+        private CancellationTokenSource? _dismissCts;
 
         private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
         private const string AppName = "Notifier";
@@ -162,7 +164,7 @@ namespace Notifier
             catch { }
         }
 
-        private void ShowPanelsFromApp()
+        public void ShowPanelsFromApp()
         {
             if (_summaryWindow == null || _settingWindow == null)
             {
@@ -202,8 +204,10 @@ namespace Notifier
                 _summaryWindow.Topmost = true;
                 _settingWindow.Topmost = true;
 
-                _summaryWindow.Activate();
+                // Activate setting first then summary so MessageSummaryWindow
+                // ends up with focus by default when panels are shown.
                 _settingWindow.Activate();
+                _summaryWindow.Activate();
             });
         }
 
@@ -261,15 +265,31 @@ namespace Notifier
                 return;
             }
 
-            if (_summaryWindow != null && _settingWindow != null && _summaryWindow.IsVisible)
+            // All Avalonia UI operations must run on the UI thread. The NotifyIcon event
+            // runs on a WinForms thread which can cause cross-thread exceptions or crashes
+            // when creating/showing Avalonia windows. Dispatch the work and protect with
+            // a try/catch so exceptions don't crash the process.
+            Dispatcher.UIThread.Post(() =>
             {
-                _summaryWindow.RefreshMessages();
-                _summaryWindow.Activate();
-                _settingWindow?.Activate();
-                return;
-            }
+                try
+                {
+                    if (_summaryWindow != null && _settingWindow != null && _summaryWindow.IsVisible)
+                    {
+                        _summaryWindow.RefreshMessages();
+                        // Activate setting first then summary so MessageSummaryWindow
+                        // ends up with focus by default when panels are shown.
+                        _settingWindow?.Activate();
+                        _summaryWindow.Activate();
+                        return;
+                    }
 
-            ShowPanelsFromApp();
+                    ShowPanelsFromApp();
+                }
+                catch (Exception ex)
+                {
+                    try { Logger.Error("托盘点击处理失败", ex); } catch { }
+                }
+            });
         }
 
         private void TryDismissPanel()
@@ -283,12 +303,34 @@ namespace Notifier
             if (summaryWindow._isClosing || settingWindow._isClosing)
                 return;
 
-            bool anyWindowHasFocus = (summaryWindow.IsActive || settingWindow.IsActive || _summaryFocus || _settingFocus);
-            if (!anyWindowHasFocus && summaryWindow.IsVisible && settingWindow.IsVisible)
+            // Debounce dismiss to avoid transient focus changes closing the panels.
+            // Cancel any pending dismissal and schedule a short delayed check.
+            try { _dismissCts?.Cancel(); } catch { }
+            _dismissCts = new CancellationTokenSource();
+            var token = _dismissCts.Token;
+
+            _ = Task.Run(async () =>
             {
-                summaryWindow.RequestCloseFromApp();
-                settingWindow.RequestClose();
-            }
+                try
+                {
+                    await Task.Delay(80, token);
+                    if (token.IsCancellationRequested) return;
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (token.IsCancellationRequested) return;
+
+                        bool anyWindowHasFocus = (summaryWindow.IsActive || settingWindow.IsActive || _summaryFocus || _settingFocus);
+                        if (!anyWindowHasFocus && summaryWindow.IsVisible && settingWindow.IsVisible)
+                        {
+                            try { summaryWindow.RequestCloseFromApp(); } catch { }
+                            try { settingWindow.RequestClose(); } catch { }
+                        }
+                    });
+                }
+                catch (TaskCanceledException) { }
+                catch { }
+            });
         }
 
         private void PanelCleanup()

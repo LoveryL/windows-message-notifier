@@ -43,23 +43,73 @@ namespace Notifier
             };
         }
 
-        private void OnFirstLoaded(object? sender, EventArgs e)
+        private async void OnFirstLoaded(object? sender, EventArgs e)
         {
             PositionWindow();
             _allowDeactivate = true;
-            RootGrid.Opacity = 1;
-            if (RootGrid.RenderTransform is TranslateTransform translate)
-                translate.X = 0;
+            await AnimateShowAsync();
             ReportFocusState?.Invoke(true);
         }
 
-        public void RequestCloseFromApp()
+        private async Task AnimateShowAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = 0.0, toOpacity = 1.0;
+                double fromX = -420, toX = 0;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    double curOpacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    double curX = fromX + (toX - fromX) * t;
+
+                    RootGrid.Opacity = curOpacity;
+                    if (RootGrid.RenderTransform is TranslateTransform translate)
+                        translate.X = curX;
+
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
+        private async Task AnimateHideAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = RootGrid.Opacity;
+                double toOpacity = 0.0;
+                double fromX = 0, toX = -420;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    double curOpacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    double curX = fromX + (toX - fromX) * t;
+
+                    RootGrid.Opacity = curOpacity;
+                    if (RootGrid.RenderTransform is TranslateTransform translate)
+                        translate.X = curX;
+
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
+        internal void RequestCloseFromApp()
             => InternalRequestClose();
 
-        private void InternalRequestClose()
+        private async void InternalRequestClose()
         {
             if (_isClosing) return;
             _isClosing = true;
+            await AnimateHideAsync();
             SafeClose();
         }
 
@@ -131,16 +181,25 @@ namespace Notifier
             if (sender is not Border { Tag: string title })
                 return;
 
-            var target = ToastMessageStore.GetAll()
-                .FirstOrDefault(m => string.Equals(
+            var groupMatches = ToastMessageStore.GetAll()
+                .Where(m => string.Equals(
                     string.IsNullOrWhiteSpace(m.Title) ? "新通知" : m.Title,
-                    title, StringComparison.Ordinal));
+                    title, StringComparison.Ordinal))
+                .ToList();
 
-            string? aumid = target?.Aumid;
+            var aumid = groupMatches
+                .Select(m => m.Aumid)
+                .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a));
 
-            ToastMessageStore.RemoveByTitleAndSync(title);
+            var appName = groupMatches
+                .Select(m => m.AppName)
+                .FirstOrDefault(a => !string.IsNullOrWhiteSpace(a));
+
+            foreach (var m in groupMatches)
+                ToastMessageStore.RemoveAndSync(m);
+
             RefreshMessages();
-            ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared();
+            try { ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared(); } catch { }
 
             if (!string.IsNullOrWhiteSpace(aumid))
             {
@@ -148,17 +207,17 @@ namespace Notifier
                 if (!ok)
                 {
                     Debug.WriteLine($"[AppActivator] 唤醒失败：{msg}");
-                    if (!string.IsNullOrWhiteSpace(target?.AppName))
+                    if (!string.IsNullOrWhiteSpace(appName))
                     {
-                        var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
+                        var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(appName);
                         if (!ok2)
                             Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
                     }
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(target?.AppName))
+            else if (!string.IsNullOrWhiteSpace(appName))
             {
-                var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(target.AppName);
+                var (ok2, msg2) = AppActivator.TryBringToFrontByAppName(appName);
                 if (!ok2)
                     Debug.WriteLine($"[AppActivator] 按应用名置前失败：{msg2}");
             }
@@ -166,11 +225,15 @@ namespace Notifier
 
         private async void ClearButton_Click(object? sender, RoutedEventArgs e)
         {
-            var aumids = ToastMessageStore.GetAll()
-                .Select(m => m.Aumid)
-                .Where(a => !string.IsNullOrWhiteSpace(a))
-                .Distinct()
-                .ToList();
+            try
+            {
+                var listener = ToastMessageStore.Listener;
+                if (listener != null)
+                {
+                    try { await listener.ClearAllNotificationsAsync(); } catch { }
+                }
+            }
+            catch { }
 
             await Task.Run(() =>
             {
@@ -179,7 +242,7 @@ namespace Notifier
             });
 
             RefreshMessages();
-            ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared();
+            try { ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared(); } catch { }
         }
 
         private void PositionWindow()
@@ -188,11 +251,10 @@ namespace Notifier
             if (screen == null) return;
 
             var workArea = screen.WorkingArea;
-            const int leftOffset = 18;
-            var top = workArea.Y + 20;
-            var left = workArea.X + leftOffset;
+            var top = workArea.Y + 15;
+            var left = workArea.X + 15;
 
-            Position = new PixelPoint(left, top);
+            Position = new PixelPoint((int)Math.Round((double)left, 0, MidpointRounding.AwayFromZero), (int)Math.Round((double)top, 0, MidpointRounding.AwayFromZero));
         }
     }
 
