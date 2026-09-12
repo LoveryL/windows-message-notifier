@@ -44,7 +44,7 @@ public class Settings_Manager
         try
         {
             string jsonString = File.ReadAllText("config.json");
-            config = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString);
+            config = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString) ?? new Dictionary<string, object>();
             Logger.Debug("Readed config");
             if(config.ContainsKey("Notifier.Toast.Enabled")) is_toast_enabled = ((JsonElement)config["Notifier.Toast.Enabled"]).GetBoolean();
             if(config.ContainsKey("Notifier.Opacity")) opacity = ((JsonElement)config["Notifier.Opacity"]).GetSingle();

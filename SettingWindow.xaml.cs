@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Animation;
-using System.Windows.Threading;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Threading;
 
 namespace Notifier
 {
@@ -18,52 +19,41 @@ namespace Notifier
         private readonly SystemSettingsManager _settings = new();
         private bool _isInitializing;
 
-        #region Effect
-        [DllImport("user32.dll")]
-        private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WINCOMPATTRDATA data);
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct ACCENTPOLICY
-        {
-            public int nAccentState;
-            public int nFlags;
-            public int nColor;
-            public int nAnimationId;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct WINCOMPATTRDATA
-        {
-            public int nAttribute;
-            public IntPtr pData;
-            public int ulDataSize;
-        }
-        #endregion
         public SettingWindow()
         {
             InitializeComponent();
             PlayPauseIcon.Text = "\u25B6";
-            // Apply configured opacity if available
-            try { if (App.Config != null && !double.IsNaN(App.Config.SettingWindowOpacity)) Opacity = App.Config.SettingWindowOpacity; } catch { }
-
-            LoadCurrentSettings();
-            Loaded += OnFirstLoaded;
-        }
-
-        #region 启动读取
-        private void LoadCurrentSettings()
-        {
-            _isInitializing = true;
 
             try
             {
-                // ---- 音量 ----
+                if (App.Config != null && !double.IsNaN(App.Config.SettingWindowOpacity))
+                    Opacity = App.Config.SettingWindowOpacity;
+            }
+            catch { }
+
+            LoadCurrentSettings();
+            this.Opened += OnFirstLoaded;
+            this.Activated += (_, __) =>
+            {
+                if (_allowDeactivate)
+                    ReportFocusState?.Invoke(true);
+            };
+            this.Deactivated += (_, __) =>
+            {
+                if (!_allowDeactivate) return;
+                Dispatcher.UIThread.Post(() => ReportFocusState?.Invoke(false));
+            };
+        }
+
+        private void LoadCurrentSettings()
+        {
+            _isInitializing = true;
+            try
+            {
                 float vol = _settings.GetSystemVolume();
                 VolumeSlider.Value = vol * 100.0;
 
-                // ---- 亮度 ----
                 int brightnessPercent;
-
                 if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
                 {
                     brightnessPercent = _settings.GetScreenBrightness();
@@ -81,128 +71,114 @@ namespace Notifier
                 _isInitializing = false;
             }
         }
-        #endregion
 
-        #region 入场
-        private void OnFirstLoaded(object? sender, RoutedEventArgs e)
+        private async void OnFirstLoaded(object? sender, EventArgs e)
         {
             PositionWindow();
+            _allowDeactivate = true;
+            await AnimateShowAsync();
 
-            VolumeSlider.ValueChanged += OnVolumeChanged;
-            BrightnessSlider.ValueChanged += OnBrightnessChanged;
-
-            if (Resources["SlideInAnimation"] is Storyboard sb)
+            VolumeSlider.ValueChanged += (_, _) =>
             {
-                sb.Completed += (_, __) => { _allowDeactivate = true; 
-                    var hwnd = new WindowInteropHelper(this).Handle;
-                    var accent = new ACCENTPOLICY { nAccentState = 3, nColor = 0 };
-                    var data = new WINCOMPATTRDATA { nAttribute = 19, pData = Marshal.AllocHGlobal(Marshal.SizeOf(accent)), ulDataSize = Marshal.SizeOf(accent) };
-                    Marshal.StructureToPtr(accent, data.pData, false);
-                    SetWindowCompositionAttribute(hwnd, ref data);
-                    Marshal.FreeHGlobal(data.pData);
-                };
-                sb.Begin(this);
-            }
-            else _allowDeactivate = true;
-            // ========== [新增] SMTC 初始化 ==========
-            InitializeSMTC();
+                if (_isInitializing) return;
+                float level = (float)(VolumeSlider.Value / 100.0);
+                _settings.SetSystemVolume(level);
+            };
 
-            // ========== [新增] 绑定 SMTC 按钮事件 ==========
+            BrightnessSlider.ValueChanged += (_, _) =>
+            {
+                if (_isInitializing) return;
+                int percent = (int)Math.Clamp(BrightnessSlider.Value, 0, 100);
+                if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+                {
+                    _settings.TrySetScreenBrightness(percent);
+                }
+                else
+                {
+                    int safePercent = Math.Max(5, percent);
+                    _settings.SetSimulatedBrightness(safePercent);
+                }
+            };
+
+            InitializeSMTC();
             BtnPrevious.Click += OnPreviousClicked;
             BtnPlayPause.Click += OnPlayPauseClicked;
             BtnNext.Click += OnNextClicked;
-
-            Show();
-            
-        }
-        #endregion
-
-        #region 滑块拖动|同步系统
-        private void OnVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_isInitializing) return;
-
-            float level = (float)(e.NewValue / 100.0);
-            _settings.SetSystemVolume(level);
         }
 
-        private void OnBrightnessChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_isInitializing) return;
-
-            int percent = (int)Math.Clamp(e.NewValue, 0, 100);
-
-            if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
-            {
-                _settings.TrySetScreenBrightness(percent);
-            }
-            else
-            {
-                int safePercent = Math.Max(5, percent);
-                _settings.SetSimulatedBrightness(safePercent);
-            }
-        }
-        #endregion
-
-        #region 焦点
-        protected override void OnActivated(EventArgs e)
-        {
-            base.OnActivated(e);
-            if (_allowDeactivate)
-                ReportFocusState?.Invoke(true);
-        }
-
-        protected override void OnDeactivated(EventArgs e)
-        {
-            base.OnDeactivated(e);
-            if (!_allowDeactivate) return;
-
-            Dispatcher.BeginInvoke(() =>
-                ReportFocusState?.Invoke(false),
-                System.Windows.Threading.DispatcherPriority.Background);
-        }
-        #endregion
-
-        #region 退场
-        public void RequestClose()
+        internal void RequestClose()
         {
             if (_isClosing) return;
             _isClosing = true;
-
-            if (Resources["SlideOutAnimation"] is Storyboard sb)
-            {
-                sb.Completed -= SlideOut_Completed;
-                sb.Completed += SlideOut_Completed;
-                sb.Begin(this);
-            }
-            else SafeClose();
+            _ = RequestCloseAsync();
         }
-
-        private void SlideOut_Completed(object? sender, EventArgs e)
-            => SafeClose();
 
         private void SafeClose()
         {
             WindowClosed?.Invoke();
             _settings.Dispose();
-
-            // ========== [新增] 清理 SMTC 资源 ==========
             CleanupSMTC();
-
             Close();
         }
-        #endregion
 
-        #region 布局
+        private async Task RequestCloseAsync()
+        {
+            try { await AnimateHideAsync(); } catch { }
+            SafeClose();
+        }
+
+        private async Task AnimateShowAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = 0.0, toOpacity = 1.0;
+                double fromX = -420, toX = 0;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    if (RootGrid.RenderTransform is TranslateTransform tr)
+                        tr.X = fromX + (toX - fromX) * t;
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
+        private async Task AnimateHideAsync()
+        {
+            try
+            {
+                const int frames = 8;
+                const int msPerFrame = 4;
+                double fromOpacity = RootGrid.Opacity, toOpacity = 0.0;
+                double fromX = 0, toX = -420;
+
+                for (int i = 0; i <= frames; i++)
+                {
+                    double t = (double)i / frames;
+                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
+                    if (RootGrid.RenderTransform is TranslateTransform tr)
+                        tr.X = fromX + (toX - fromX) * t;
+                    await Task.Delay(msPerFrame);
+                }
+            }
+            catch { }
+        }
+
         private void PositionWindow()
         {
-            UpdateLayout();
-            double h = ActualHeight > 0 ? ActualHeight : Height;
-            var s = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea;
-            if (s == null) return;
-            Top = s.Value.Top + Math.Max(20, (s.Value.Height - h) * 0.03) * 2 + h;
-            Left = s.Value.Left + 18;
+            var screen = Screens.Primary;
+            if (screen == null) return;
+
+            var workArea = screen.WorkingArea;
+            var top = workArea.Y + (workArea.Height / 2) + 15;
+            var left = workArea.X + 15;
+
+            Position = new PixelPoint((int)Math.Round((double)left, 0, MidpointRounding.AwayFromZero), (int)Math.Round((double)top, 0, MidpointRounding.AwayFromZero));
         }
-        #endregion
     }
 }

@@ -152,15 +152,9 @@ dotnet run --configuration Release
 | 层级 | 技术 | 说明 |
 |:---|:---|:---|
 | **语言** | C# 13 (.NET 10) | 100% C# 编写 |
-| **UI 框架** | WPF (Windows Presentation Foundation) | XAML 声明式 UI + 数据绑定 |
+| **UI 框架** | WPF (Windows Presentation Foundation)+Winforms | XAML 声明式 UI + 数据绑定 |
 | **通知 API** | Windows Runtime `UserNotificationListener` | 系统级通知监听 (WinAppSDK) |
 | **托盘集成** | `System.Windows.Forms.NotifyIcon` | 系统托盘图标与右键菜单 |
-
-### 核心依赖
-
-```xml
-<TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
-```
 
 - 目标 Windows SDK: `10.0.22621.0` (Windows 11 SDK)
 - 向下兼容 Windows 10 (Build 1809+)
@@ -177,23 +171,15 @@ dotnet run --configuration Release
   - 通知访问权限是否已授予
   - Windows 版本是否满足最低要求
   - 防病毒软件是否拦截了应用
--一键唤起功能仅支持：
+- 一键唤起功能仅支持：
   - 在任务栏的程序
   - 有aumid的程序
-- 当前已知bug:
-  - 自启功能在打包模式下可能出现问题
 
 ---
 
 ## 🤝 贡献 | Contributing
 
 欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建你的特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交你的更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 打开一个 Pull Request
 
 ---
 

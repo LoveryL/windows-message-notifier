@@ -1,0 +1,116 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Notifier"
+        x:Class="Notifier.MessageSummaryWindow"
+        Title="未读通知"
+        Width="370" Height="315"
+        MinWidth="370" MinHeight="315"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Topmost="True"
+        SystemDecorations="None">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Notifier/ThemeResources.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid x:Name="RootGrid" Opacity="0">
+        <Grid.RenderTransform>
+            <TranslateTransform X="-420"/>
+        </Grid.RenderTransform>
+        <Border CornerRadius="14"
+                Background="{DynamicResource LiquidGlassBackground}"
+                BorderBrush="{DynamicResource GlassBorderBrush}"
+                BorderThickness="1"
+                BoxShadow="0 0 24 0 #00000040">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" CornerRadius="14,14,0,0" Padding="14,10">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path Data="{DynamicResource IconBell}" Fill="{DynamicResource AccentBrush}" Stretch="Uniform" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" />
+                        <TextBlock Text="未读通知" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeTitle}" Foreground="{DynamicResource LiquidGlassForeground}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer Grid.Row="1" Margin="12,8,12,8" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="MessageList" IsHitTestVisible="True">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:ToastMessageGroup">
+                                <Border CornerRadius="8"
+                                        Background="#14000000"
+                                        Padding="12,8"
+                                        Margin="0,4"
+                                        Tag="{Binding Title}"
+                                        IsHitTestVisible="True"
+                                        Cursor="Hand"
+                                        PointerPressed="MessageItem_MouseLeftButtonDown">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="{DynamicResource FontSizeTitle}"
+                                                   Foreground="#CC000000"
+                                                   TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding Bodies}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}"
+                                                               FontSize="{DynamicResource FontSizeBody}"
+                                                               Foreground="#88000000"
+                                                               Margin="14,2,0,2"
+                                                               TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="{Binding SourceApp}"
+                                                   FontSize="{DynamicResource FontSizeCaption}"
+                                                   Foreground="#777777"
+                                                   HorizontalAlignment="Right"
+                                                   Margin="0,4,4,0"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding SourceApp, Converter={StaticResource NullToVisibilityConverter}}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" CornerRadius="0,0,14,14" Padding="12,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusText"
+                                   Grid.Column="0"
+                                   FontSize="{DynamicResource FontSizeBody}"
+                                   Foreground="{DynamicResource LiquidGlassForeground}"
+                                   VerticalAlignment="Center" />
+                        <Button x:Name="ClearButton"
+                                Grid.Column="1"
+                                Content="清除全部"
+                                Click="ClearButton_Click"
+                                Background="#D32F2F"
+                                Foreground="White"
+                                BorderThickness="0"
+                                FontSize="{DynamicResource FontSizeBody}"
+                                Padding="10,5"
+                                Cursor="Hand" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
