@@ -38,6 +38,8 @@ namespace Notifier
         private const uint SWP_NOACTIVATE = 0x0010;
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOMOVE = 0x0002;
+        private const int WS_EX_LAYERED = 0x00080000;
+        private const uint SWP_FRAMECHANGED = 0x0800;
 
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
@@ -263,32 +265,36 @@ namespace Notifier
         }
 
         private void DisableMouseTransparency()
-        {
-            try
-            {
-                var hwnd = GetWindowHandle();
-                if (hwnd == IntPtr.Zero) return;
-                var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-                long ex = exPtr.ToInt64();
-                ex &= ~WS_EX_TRANSPARENT;
-                SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
-            }
-            catch { }
-        }
+{
+    try
+    {
+        var hwnd = this.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (hwnd == IntPtr.Zero) return;
+        var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        long ex = exPtr.ToInt64();
+        ex &= ~WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+    catch { }
+}
 
-        private void EnableMouseTransparency()
-        {
-            try
-            {
-                var hwnd = GetWindowHandle();
-                if (hwnd == IntPtr.Zero) return;
-                var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-                long ex = exPtr.ToInt64();
-                ex |= WS_EX_TRANSPARENT;
-                SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
-            }
-            catch { }
-        }
+private void EnableMouseTransparency()
+{
+    try
+    {
+        var hwnd = this.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (hwnd == IntPtr.Zero) return;
+        var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        long ex = exPtr.ToInt64();
+        ex |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex));
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+    catch { }
+}
 
         private async void AnimateBorderToColor(Avalonia.Media.Color target)
         {

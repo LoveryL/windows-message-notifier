@@ -2,8 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=netstandard">
 
-    <Color x:Key="LiquidGlassBackgroundColor">#67FFFFFF</Color>
-    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#67FFFFFF" />
+    <Color x:Key="LiquidGlassBackgroundColor">#78FFFFFF</Color>
+    <SolidColorBrush x:Key="LiquidGlassBackground" Color="#AFFFFFFF" />
     <SolidColorBrush x:Key="LiquidGlassForeground" Color="#FF1C1C1E" />
     <SolidColorBrush x:Key="AccentBrush" Color="#000000" />
     <SolidColorBrush x:Key="GlassBorderBrush" Color="#40FFFFFF" />
