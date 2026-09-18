@@ -10,9 +10,9 @@
 
 ---
 
-一个基于 **WPF (C#)** 的轻量级 Windows 桌面消息通知助手，能够 **监听系统 Toast 通知** 并以自定义弹窗形式展示，同时提供消息汇总面板，帮助你集中管理和查看所有通知。
+一个基于 **Avalonia (C#)** 的轻量级 Windows 桌面消息通知助手，能够 **监听系统 Toast 通知** 并以弹窗形式展示，同时提供消息汇总面板，控制面板，帮助你集中管理和查看所有通知以及系统。
 
-A lightweight Windows desktop message notifier built with **WPF (C#)**. It **listens to system Toast notifications** and displays them as custom popup toasts, while providing a message summary panel to help you centrally manage and review all notifications.
+A lightweight Windows desktop message notification assistant based on **Avalonia (C#)**, which can **listen to system Toast notifications** and display them as pop-ups, while also providing a message summary panel and control panel to help you manage and view all notifications and the system in one place.
 
 ---
 
@@ -29,13 +29,11 @@ A lightweight Windows desktop message notifier built with **WPF (C#)**. It **lis
 | 特性 | 说明 (中文) | Description (EN) |
 |:---|:---|:---|
 | 🔔 **系统通知监听** | 基于 Windows Runtime 的 `UserNotificationListener` API，实时捕获系统级 Toast 通知 | Built on Windows Runtime `UserNotificationListener` API for real-time system-wide Toast notification capture |
-| 🖥 **自定义弹窗通知** | 收到新通知时，在屏幕右上角弹出美观的自定义 Toast 窗口，支持滑入/滑出动画 | Beautiful custom Toast popup in the top-right corner with slide-in/out animations |
+| 🖥 **弹窗通知** | 收到新通知时，在屏幕右上角弹出美观的自定义 Toast 窗口，支持滑入/滑出动画 | Beautiful custom Toast popup in the top-right corner with slide-in/out animations |
 | 📋 **消息汇总面板** | 点击系统托盘图标可打开消息汇总窗口，集中查看所有捕获的通知 | Click the tray icon to open a summary window that lists all captured notifications |
 | 🧲 **系统托盘常驻** | 最小化到系统托盘运行，不占用任务栏空间，支持右键菜单操作 | Runs in the system tray with context menu support (auto-start toggle, exit) |
 | 🔄 **开机自启** | 支持通过注册表配置开机自启，一键开关 | One-click toggle for auto-start via Windows Registry |
 | ✨ **通知管理** | 支持按标题批量清除通知，也可逐条删除并同步清除系统通知中心中的记录 | Clear notifications by title or remove individual items with sync to the system notification center |
-| 🚫 **智能过滤** | 自动过滤来自微信等特定应用的通知，避免重复捕获 | Automatically filters out notifications from specific apps like WeChat |
-| 🧹 **极致性能** |文件大小仅26mb,在i3-4130,HD4400,4G RAM,Windows 10 21H2 IoT企业版LTSC运行环境下平均CPU占用<1%，内存占用<70mb，GPU占用为0（连续运行24h），当不停人为刷新UI达到CPU占用25%，GPU占用26%峰值|Please using translator because I'm tired |
 ---
 
 ## 🏗 项目结构 | Project Structure
@@ -71,7 +69,7 @@ windows-message-notifier/
 
 - **操作系统**: Windows 10 (Build 1809+) / Windows 11
 - **运行环境**: [.NET 10.0 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) 或更高版本
-- **开发环境** (仅开发时需要): Visual Studio 2022+ / VS Code + C# Dev Kit
+- **开发环境** (仅开发时需要): Windows 21H2+.Net 10
 
 ### 运行方式一：下载 Release（推荐）
 
@@ -152,7 +150,7 @@ dotnet run --configuration Release
 | 层级 | 技术 | 说明 |
 |:---|:---|:---|
 | **语言** | C# 13 (.NET 10) | 100% C# 编写 |
-| **UI 框架** | WPF (Windows Presentation Foundation)+Winforms | XAML 声明式 UI + 数据绑定 |
+| **UI 框架** | Avalonia UI+Winforms | XAML 声明式 UI + 数据绑定 |
 | **通知 API** | Windows Runtime `UserNotificationListener` | 系统级通知监听 (WinAppSDK) |
 | **托盘集成** | `System.Windows.Forms.NotifyIcon` | 系统托盘图标与右键菜单 |
 
