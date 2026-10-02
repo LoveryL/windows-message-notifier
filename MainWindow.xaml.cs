@@ -323,24 +323,91 @@ private void EnableMouseTransparency()
         }
 
         private bool _isExpandedByShift = false;
-        private double _savedHeight = 0;
+        private const double DefaultWindowWidth = 375;
+        private const double DefaultWindowHeight = 75;
+
+        private double CalculateExpandedHeightFromContent()
+        {
+            try
+            {
+                var text = string.Join("\n", _messageGroups
+                    .SelectMany(g => new[] { g.Title }.Concat(g.Bodies)))
+                    .Trim();
+
+                if (string.IsNullOrEmpty(text))
+                    return DefaultWindowHeight;
+
+                var estimatedLines = Math.Max(1, (int)Math.Ceiling(text.Length / 30.0));
+                return Math.Min(420, DefaultWindowHeight + (estimatedLines - 1) * 18);
+            }
+            catch
+            {
+                return DefaultWindowHeight;
+            }
+        }
+
+        private void ApplyShiftWindowState(bool expand)
+        {
+            try
+            {
+                foreach (var tb in this.GetVisualDescendants().OfType<TextBlock>())
+                {
+                    tb.TextWrapping = expand ? TextWrapping.Wrap : TextWrapping.NoWrap;
+                }
+
+                this.Width = DefaultWindowWidth;
+                this.InvalidateMeasure();
+                this.UpdateLayout();
+
+                if (expand)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            this.InvalidateMeasure();
+                            this.UpdateLayout();
+
+                            var itemHeight = MessageList?.DesiredSize.Height ?? 0;
+                            if (double.IsNaN(itemHeight) || itemHeight <= 0)
+                            {
+                                this.Height = DefaultWindowHeight;
+                                return;
+                            }
+
+                            var targetHeight = Math.Max(DefaultWindowHeight, itemHeight + 36);
+                            this.Height = Math.Min(420, targetHeight);
+
+                            this.InvalidateMeasure();
+                            this.UpdateLayout();
+                        }
+                        catch { }
+                    });
+                }
+                else
+                {
+                    this.Height = DefaultWindowHeight;
+                    this.InvalidateMeasure();
+                    this.UpdateLayout();
+                }
+            }
+            catch { }
+        }
+
         private void ExpandForShift()
         {
             try
             {
                 if (_isExpandedByShift) return;
                 _isExpandedByShift = true;
-                _savedHeight = this.Height;
-                this.Height = double.NaN;
-                // try to wrap textblocks
-                try
+
+                foreach (var tb in this.GetVisualDescendants().OfType<TextBlock>())
                 {
-                    foreach (var tb in this.GetVisualDescendants().OfType<TextBlock>())
-                    {
-                        tb.TextWrapping = TextWrapping.Wrap;
-                    }
+                    tb.TextWrapping = TextWrapping.Wrap;
                 }
-                catch { }
+
+                this.Width = DefaultWindowWidth;
+                this.Height = CalculateExpandedHeightFromContent();
             }
             catch { }
         }
@@ -351,15 +418,14 @@ private void EnableMouseTransparency()
             {
                 if (!_isExpandedByShift) return;
                 _isExpandedByShift = false;
-                try
+
+                foreach (var tb in this.GetVisualDescendants().OfType<TextBlock>())
                 {
-                    foreach (var tb in this.GetVisualDescendants().OfType<TextBlock>())
-                    {
-                        tb.TextWrapping = TextWrapping.NoWrap;
-                    }
+                    tb.TextWrapping = TextWrapping.NoWrap;
                 }
-                catch { }
-                this.Height = _savedHeight;
+
+                this.Width = DefaultWindowWidth;
+                this.Height = DefaultWindowHeight;
             }
             catch { }
         }
@@ -374,15 +440,15 @@ private void EnableMouseTransparency()
 
             try
             {
-                if (App.Config != null && !double.IsNaN(App.Config.MainWindowOpacity))
-                    Opacity = App.Config.MainWindowOpacity;
+                if (App.setting != null && !double.IsNaN(App.setting.opacity))
+                    Opacity = App.setting.opacity;
             }
             catch { }
 
             this.Opened += (_, __) => PositionWindow();
             this.Closed += OnWindowClosed;
 
-            _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(App.setting.show_time) };
             _displayTimer.Tick += OnDisplayTimerTick;
 
             _ctrlPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -537,6 +603,8 @@ private void EnableMouseTransparency()
             RootGrid.Opacity = 1;
             ShowNoActivateTopmost();
             EnableMouseTransparency();
+            this.Focusable = false;
+            try { if (this.WindowState == WindowState.Minimized) this.WindowState = WindowState.Normal; } catch { }
             try { if (_ctrlPollTimer != null && !_ctrlPollTimer.IsEnabled) _ctrlPollTimer.Start(); } catch { }
             StartDisplayTimer();
         }
@@ -797,8 +865,8 @@ private void EnableMouseTransparency()
             if (screen == null) return;
 
             var workArea = screen.WorkingArea;
-            var left = App.Config.IsMainWindowMiddle ? (workArea.Width - Width) / 2.0 : App.Config.MainWindowLeft;
-            Position = new PixelPoint((int)Math.Round(left), (int)Math.Round(App.Config.MainWindowTop));
+            var left = App.setting.is_middle ? (workArea.Width - Width) / 2.0 : App.setting.window_left;
+            Position = new PixelPoint((int)Math.Round(left), (int)Math.Round(App.setting.window_top));
         }
     }
 }

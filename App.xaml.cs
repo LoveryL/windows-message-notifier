@@ -24,6 +24,7 @@ namespace Notifier
         }
 
         private static Settings_Manager sets = new Settings_Manager();
+        public static Settings_Manager setting => sets;
         private bool on_setting = false;
         private bool _isReadyForTrayClick = false;
         private ToastNotificationListener? _listener;
@@ -41,7 +42,6 @@ namespace Notifier
         private const string AppName = "Notifier";
 
         // Loaded configuration (from registry)
-        public static AppConfig Config { get; private set; } = new AppConfig();
 
         public static event Action<ToastData>? OnNewToastDetected;
 
@@ -55,7 +55,6 @@ namespace Notifier
 
             base.OnFrameworkInitializationCompleted();
             sets.init_settings();
-            resets();
             InitializeNotifyIcon();
             Logger.Info("托盘图标已初始化");
             _ = InitializeListenerAsync();
@@ -235,8 +234,8 @@ namespace Notifier
                 settingForm.FormClosed += (_, __) =>
                 {
                     on_setting = false;
-                    resets();
                     AddMessage("设置", "设置窗口已关闭", "Notifier");
+                    
                 };
                 settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
                 settingForm.Show();
@@ -511,15 +510,6 @@ namespace Notifier
                     Logger.Warn($"开机自启受系统策略限制 State={task.State}");
                     break;
             }
-        }
-
-        private void resets()
-        {
-            Config.IsMainWindowMiddle = sets.is_middle;
-            Config.MainWindowTop = sets.window_top;
-            Config.MainWindowOpacity = sets.opacity;
-            if (!sets.is_middle)
-                Config.MainWindowLeft = sets.window_left;
         }
     }
 }

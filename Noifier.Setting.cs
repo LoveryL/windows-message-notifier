@@ -2,21 +2,13 @@ using System.IO;
 using System.Text.Json;
 
 namespace Notifier;
-public class AppConfig
-    {
-        public double MainWindowOpacity { get; set; } = 1.0;
-        public double MessageSummaryOpacity { get; set; } = 1.0;
-        public double SettingWindowOpacity { get; set; } = 1.0;
-        public double MainWindowLeft { get; set; } = double.NaN;
-        public double MainWindowTop { get; set; } = 15.0f;
-        public bool IsMainWindowMiddle { get; set; } = true;
-    }
 public class Settings_Manager
 {
     public bool is_toast_enabled { get; private set; } = true;
-    public float opacity { get; set; } = 1.0f;
+    public float opacity { get; private set; } = 1.0f;
     public float window_top { get; private set; } = 15.0f;
     public bool is_middle{ get; private set; } = true;
+    public int show_time { get; private set; } = 3;
     public float window_left { get; private set; } = float.NaN;
     public enum SettingType
         {
@@ -24,8 +16,9 @@ public class Settings_Manager
             Opacity,
             window_top,
             ismiddle,
-            window_left
-        }
+            window_left,
+            show_time
+    }
     private Dictionary<string, object> config = new Dictionary<string, object>{};
     private void resetvalues() {    
         config.Clear();
@@ -35,7 +28,8 @@ public class Settings_Manager
             { "Notifier.Opacity", opacity },
             { "Notifier.Window.Top", window_top },
             { "Notifier.isMiddle", is_middle },
-            { "Notifier.Window.Left", window_left }
+            { "Notifier.Window.Left", window_left },
+            { "Notifier.Message.ShowTime", show_time }
         };
     }
     public void init_settings()
@@ -51,6 +45,7 @@ public class Settings_Manager
             if(config.ContainsKey("Notifier.Window.Top")) window_top = ((JsonElement)config["Notifier.Window.Top"]).GetSingle();
             if(config.ContainsKey("Notifier.isMiddle")) is_middle = ((JsonElement)config["Notifier.isMiddle"]).GetBoolean();
             if(config.ContainsKey("Notifier.Window.Left")) window_left = ((JsonElement)config["Notifier.Window.Left"]).GetSingle();
+            if(config.ContainsKey("Notifier.Message.ShowTime")) show_time = ((JsonElement)config["Notifier.Message.ShowTime"]).GetInt32();
             //if(config.ContainsKey("Notifier.SMTC.Enabled")) is_SMTC_enabled = ((JsonElement)config["Notifier.SMTC.Enabled"]).GetBoolean();
         }
         catch (FileNotFoundException ex)
@@ -63,7 +58,8 @@ public class Settings_Manager
                 { "Notifier.Opacity", 1.0f },
                 { "Notifier.Window.Top", 15.0f },
                 { "Notifier.isMiddle", true },
-                { "Notifier.Window.Left", 0f }
+                { "Notifier.Window.Left", 0f },
+                { "Notifier.Message.ShowTime", 3 }
                 //{ "Notifier.Sound.Enabled", true },
                 //{ "Notifier.SMTC.Enabled", true }
             };
@@ -108,6 +104,24 @@ public class Settings_Manager
         Logger.Debug($"无法保存设置:{ex.Message}");
     }
     }
+    public void set_setting(SettingType type,  int value)
+    {
+        try
+        {
+            switch (type)
+            {
+                case SettingType.show_time:
+                    show_time = value;
+                    break;
+            }
+            resetvalues();
+            File.WriteAllText("config.json", JsonSerializer.Serialize(config));
+        }
+        catch (Exception ex)
+        {
+            Logger.Debug($"无法保存设置:{ex.Message}");
+        }
+    }
     public void set_setting(SettingType type,  float value)
     {
         try{
@@ -122,12 +136,6 @@ public class Settings_Manager
             case SettingType.window_left:
                 window_left = value;
                 break;
-            //case SettingType.Sound:
-            //    is_sound_enabled = value;
-            //    break;
-            //case SettingType.SMTC:
-            //    is_SMTC_enabled = value;
-            //    break;
         }
         resetvalues();
         File.WriteAllText("config.json", JsonSerializer.Serialize(config));

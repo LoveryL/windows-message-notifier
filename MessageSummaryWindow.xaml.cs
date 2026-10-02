@@ -24,7 +24,7 @@ namespace Notifier
         {
             InitializeComponent();
 
-            try { if (App.Config != null && !double.IsNaN(App.Config.MessageSummaryOpacity)) Opacity = App.Config.MessageSummaryOpacity; } catch { }
+            try { if (App.setting != null && !double.IsNaN(App.setting.opacity)) Opacity = App.setting.opacity; } catch { }
 
             this.Opened += OnFirstLoaded;
             App.OnNewToastDetected += OnNewToast;
