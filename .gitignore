@@ -64,15 +64,3 @@ nunit-*.xml
 
 # Certificates (do not commit .pfx files containing private keys)
 Certificates/*.pfx
-/.vs/Notifier.slnx
-/.vs/Notifier/CopilotIndices/18.10.1189.45219
-/Properties/PublishProfiles
-*.json
-*.user
-*.slnx
-setting.resx
-.gitignore
-.gitignore
-.vs/ProjectEvaluation/notifier.strings.v10.bin
-.vs/ProjectEvaluation/notifier.metadata.v10.bin
-.vs/ProjectEvaluation/notifier.projects.v10.bin
