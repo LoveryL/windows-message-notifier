@@ -46,6 +46,12 @@ CodeCoverage/
 
 # MSBuild Binary and Structured Log
 *.binlog
+.vs/
+Notifier.csproj.user
+Notifier.slnx
+Properties/
+config.json
+setting.resx
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
