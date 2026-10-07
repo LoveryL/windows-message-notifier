@@ -22,11 +22,16 @@ namespace Notifier
         private bool _isDisplaying = false;
         private bool _isClosed = false;
         private bool _isClosingAnimation = false;
-        private readonly TimeSpan _displayInterval = TimeSpan.FromSeconds(3);
         private DateTime _displayDeadline;
         private TimeSpan? _pausedRemaining;
         private DispatcherTimer _ctrlPollTimer;
         private bool _ctrlHeld = false;
+
+        private TimeSpan GetDisplayInterval()
+        {
+            var seconds = App.setting != null ? Math.Max(1, App.setting.show_time) : 3;
+            return TimeSpan.FromSeconds(seconds);
+        }
 
         #region Win32 interop & transparency
         private const int GWL_EXSTYLE = -20;
@@ -324,7 +329,7 @@ private void EnableMouseTransparency()
 
         private bool _isExpandedByShift = false;
         private const double DefaultWindowWidth = 375;
-        private const double DefaultWindowHeight = 75;
+        private const double DefaultWindowHeight = 65;
 
         private double CalculateExpandedHeightFromContent()
         {
@@ -448,7 +453,11 @@ private void EnableMouseTransparency()
             this.Opened += (_, __) => PositionWindow();
             this.Closed += OnWindowClosed;
 
-            _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(App.setting.show_time) };
+            if (App.setting != null)
+                App.setting.SettingChanged += OnSettingChanged;
+
+            var initialShowTime = App.setting != null ? Math.Max(1, App.setting.show_time) : 3;
+            _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(initialShowTime) };
             _displayTimer.Tick += OnDisplayTimerTick;
 
             _ctrlPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -456,6 +465,28 @@ private void EnableMouseTransparency()
             // do not start polling until the window is actually displaying to reduce CPU usage
 
             this.PointerPressed += OnMouseLeftClick;
+        }
+
+        private void OnSettingChanged(Settings_Manager.SettingType type)
+        {
+            if (type != Settings_Manager.SettingType.show_time)
+                return;
+
+            try
+            {
+                if (_displayTimer == null)
+                    return;
+
+                var interval = GetDisplayInterval();
+                _displayTimer.Interval = interval;
+
+                if (_isDisplaying && _displayTimer.IsEnabled)
+                {
+                    _displayDeadline = DateTime.Now + _displayTimer.Interval;
+                    _displayTimer.Start();
+                }
+            }
+            catch { }
         }
 
         public void AddMessage(string title, string body, string processName = "")
@@ -721,8 +752,9 @@ private void EnableMouseTransparency()
         {
             try
             {
-                _displayTimer.Interval = _displayInterval;
-                _displayDeadline = DateTime.Now + _displayInterval;
+                var interval = GetDisplayInterval();
+                _displayTimer.Interval = interval;
+                _displayDeadline = DateTime.Now + interval;
                 _pausedRemaining = null;
 
                 if (!_isClosed && !_isClosingAnimation)
@@ -842,7 +874,7 @@ private void EnableMouseTransparency()
 
                     if (_ctrlHeld)
                     {
-                        _pausedRemaining = _displayInterval;
+                        _pausedRemaining = GetDisplayInterval();
                     }
                     else
                     {

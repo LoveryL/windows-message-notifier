@@ -25,7 +25,6 @@ namespace Notifier
 
         private static Settings_Manager sets = new Settings_Manager();
         public static Settings_Manager setting => sets;
-        private bool on_setting = false;
         private bool _isReadyForTrayClick = false;
         private ToastNotificationListener? _listener;
         private Forms.NotifyIcon? _notifyIcon;
@@ -36,6 +35,7 @@ namespace Notifier
 
         private bool _summaryFocus;
         private bool _settingFocus;
+        private bool on_setting = false;
         private CancellationTokenSource? _dismissCts;
 
         private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -188,6 +188,9 @@ namespace Notifier
                 _settingWindow.WindowClosed += PanelCleanup;
             }
 
+            CancelPendingDismiss();
+            ToastMessageStore.SetSummaryWindowVisible(true);
+
             if (!_summaryWindow.IsVisible)
                 _summaryWindow.Show();
             if (!_settingWindow.IsVisible)
@@ -208,6 +211,13 @@ namespace Notifier
                 _settingWindow.Activate();
                 _summaryWindow.Activate();
             });
+        }
+
+        private void CancelPendingDismiss()
+        {
+            try { _dismissCts?.Cancel(); } catch { }
+            try { _dismissCts?.Dispose(); } catch { }
+            _dismissCts = null;
         }
 
         private void InitializeNotifyIcon()
@@ -235,7 +245,6 @@ namespace Notifier
                 {
                     on_setting = false;
                     AddMessage("设置", "设置窗口已关闭", "Notifier");
-                    
                 };
                 settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
                 settingForm.Show();
@@ -304,7 +313,7 @@ namespace Notifier
 
             // Debounce dismiss to avoid transient focus changes closing the panels.
             // Cancel any pending dismissal and schedule a short delayed check.
-            try { _dismissCts?.Cancel(); } catch { }
+            CancelPendingDismiss();
             _dismissCts = new CancellationTokenSource();
             var token = _dismissCts.Token;
 
@@ -336,11 +345,15 @@ namespace Notifier
         {
             _summaryFocus = false;
             _settingFocus = false;
+            CancelPendingDismiss();
 
             if (_summaryWindow != null && !_summaryWindow.IsVisible)
                 _summaryWindow = null;
             if (_settingWindow != null && !_settingWindow.IsVisible)
                 _settingWindow = null;
+
+            if (_summaryWindow == null && _settingWindow == null)
+                ToastMessageStore.SetSummaryWindowVisible(false);
         }
 
         private async Task InitializeListenerAsync()
