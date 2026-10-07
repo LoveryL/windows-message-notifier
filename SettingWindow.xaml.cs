@@ -26,8 +26,8 @@ namespace Notifier
 
             try
             {
-                if (App.Config != null && !double.IsNaN(App.Config.SettingWindowOpacity))
-                    Opacity = App.Config.SettingWindowOpacity;
+                if (App.setting != null && !double.IsNaN(App.setting.opacity))
+                    Opacity = App.setting.opacity;
             }
             catch { }
 

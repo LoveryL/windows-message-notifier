@@ -136,6 +136,17 @@ partial class Set
             this.Close();
         };
         Controls.Add(button1);
+
+        TrackBar trackBar2 = new TrackBar();
+        trackBar2.Location = new Point(20, 180);
+        trackBar2.Size = new Size(100, 23);
+        trackBar2.Minimum = 1;
+        trackBar2.Maximum = 10;
+        trackBar2.Value = s.show_time;
+        trackBar2.ValueChanged += (sender, e) => {
+            s.set_setting(Settings_Manager.SettingType.show_time, trackBar2.Value);
+        };
+        Controls.Add(trackBar2);
     }
     #endregion
 }
