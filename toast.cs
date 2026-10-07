@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using System.Collections.ObjectModel;
@@ -15,6 +16,7 @@ namespace Notifier
         private uint _lastNotificationId;
         private bool _initialized;
         private ToastData? _pendingToast;
+        private readonly object _toastLock = new();
 
         // Fired when a new toast of interest is detected
         public event Action<ToastData>? OnToastDetected;
@@ -67,13 +69,15 @@ namespace Notifier
         // Backwards-compatible helper: return the latest detected toast (set by event handler)
         public Task<(ToastData? Data, string? Message)> FetchLatestNotificationAsync()
         {
-            if (!_initialized || _listener == null)
-                return Task.FromResult<(ToastData?, string?)>((null, "监听器未初始化"));
+            lock (_toastLock)
+            {
+                if (!_initialized || _listener == null)
+                    return Task.FromResult<(ToastData?, string?)>((null, "监听器未初始化"));
 
-            var data = _pendingToast;
-            _pendingToast = null; // consume
-            if (data != null) return Task.FromResult<(ToastData?, string?)>((data, null));
-            return Task.FromResult<(ToastData?, string?)>((null, null));
+                var data = _pendingToast;
+                _pendingToast = null; // consume
+                return Task.FromResult<(ToastData?, string?)>((data, null));
+            }
         }
 
         // Event callback from UserNotificationListener
@@ -84,12 +88,11 @@ namespace Notifier
                 if (args.ChangeKind != UserNotificationChangedKind.Added)
                     return; // only care about new toasts
 
-                // Get current toast notifications and pick latest by id.
                 var notifications = await sender.GetNotificationsAsync(NotificationKinds.Toast);
                 if (notifications == null || notifications.Count == 0)
                     return;
 
-                var notif = notifications.OrderByDescending(n => n.Id).First();
+                var notif = notifications.OrderByDescending(n => n.Id).FirstOrDefault();
                 if (notif == null)
                     return;
 
@@ -110,7 +113,12 @@ namespace Notifier
                 toastData.NotificationId = notif.Id;
                 toastData.InternalNotification = notif;
                 _lastNotificationId = notif.Id;
-                _pendingToast = toastData;
+
+                lock (_toastLock)
+                {
+                    _pendingToast = toastData;
+                }
+
                 OnToastDetected?.Invoke(toastData);
             }
             catch (Exception ex)
@@ -156,6 +164,7 @@ namespace Notifier
                     Body = body,
                     Aumid = aumid,
                     InternalNotification = notification,
+                    Time = DateTime.Now,
                     NotificationId = notification.Id,
                     ProcessName = appInfo?.AppUserModelId ?? appName
                 };
@@ -208,6 +217,8 @@ namespace Notifier
         public string Body { get; set; } = string.Empty;
         public string Aumid { get; set; } = string.Empty;
         public uint NotificationId { get; set; }
+        public DateTime Time { get; set; } = DateTime.Now;
+        [JsonIgnore]
         public UserNotification? InternalNotification { get; set; }
         public string ProcessName { get; set; } = string.Empty;
     }

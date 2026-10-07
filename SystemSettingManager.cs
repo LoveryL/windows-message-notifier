@@ -31,7 +31,13 @@ public sealed class SystemSettingsManager : IDisposable
     // ====== 音量 ======
     public float GetSystemVolume()
     {
-        var v = _audio?.GetVolume() ?? 0f;
+        if (_audio == null)
+        {
+            Logger.Debug("读取系统音量：音频控制器不可用，返回 0.00");
+            return 0f;
+        }
+
+        var v = _audio.GetVolume();
         Logger.Debug($"读取系统音量：{v:F2}");
         return v;
     }
@@ -40,9 +46,15 @@ public sealed class SystemSettingsManager : IDisposable
     public void SetSystemVolume(float level)
     {
         Logger.Info($"设置系统音量：{level:F2}");
+        if (_audio == null)
+        {
+            Logger.Warn("设置系统音量失败：音频控制器不可用");
+            return;
+        }
+
         try
         {
-            _audio?.SetVolume(level);
+            _audio.SetVolume(level);
         }
         catch (Exception ex)
         {
@@ -53,9 +65,15 @@ public sealed class SystemSettingsManager : IDisposable
     public void Mute(bool mute)
     {
         Logger.Info($"设置静音：{mute}");
+        if (_audio == null)
+        {
+            Logger.Warn("设置静音失败：音频控制器不可用");
+            return;
+        }
+
         try
         {
-            _audio?.Mute(mute);
+            _audio.Mute(mute);
         }
         catch (Exception ex)
         {
@@ -120,6 +138,7 @@ public sealed class SystemSettingsManager : IDisposable
         try
         {
             _audio?.Dispose();
+            BrightnessManager.RestoreDefaultGamma();
             Logger.Info("SystemSettingsManager 已释放资源");
         }
         catch (Exception ex)

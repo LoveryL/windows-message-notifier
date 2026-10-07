@@ -8,13 +8,24 @@ namespace Notifier
         [STAThread]
         public static void Main(string[] args)
         {
-            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            try
+            {
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            }
+            catch (Exception ex)
+            {
+                // Ensure any startup exception is written to console for diagnostics
+                try { Console.Error.WriteLine(ex.ToString()); } catch { }
+                throw;
+            }
         }
 
         public static AppBuilder BuildAvaloniaApp()
         {
+            // Limit Avalonia to Windows backend only and configure Skia renderer
             return AppBuilder.Configure<App>()
-                .UsePlatformDetect()
+                .UseWin32()
+                .UseSkia()
                 .LogToTrace();
         }
     }

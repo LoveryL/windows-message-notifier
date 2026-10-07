@@ -18,7 +18,10 @@
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="System.Management" Version="10.0.10" />
   </ItemGroup>
-
+  <ItemGroup>
+  <EmbeddedResource Include="Resources\icon_normal.ico" />
+  <EmbeddedResource Include="Resources\icon_alert.ico" />
+</ItemGroup>
   <ItemGroup>
     <Compile Remove="TestRunner\**\*.cs" />
   </ItemGroup>

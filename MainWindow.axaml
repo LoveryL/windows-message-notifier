@@ -3,15 +3,17 @@
         xmlns:local="using:Notifier"
         x:Class="Notifier.MainWindow"
         Title="Rectangle Window"
-        Width="375" Height="75"
-        MinWidth="160" MinHeight="40"
+        MinHeight="65"
+        Width="375" Height="65"
         Background="Transparent"
         TransparencyLevelHint="Transparent"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="Manual"
         Topmost="True"
-        SystemDecorations="None">
+        SystemDecorations="None"
+        ShowActivated="False"
+        Focusable="False">
 
     <Window.Resources>
         <ResourceDictionary>
