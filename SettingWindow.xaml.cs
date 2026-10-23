@@ -1,13 +1,17 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace Notifier
 {
+    /// <summary>
+    /// 控制中心：系统音量 / 亮度 + SMTC 媒体控制。
+    /// 设置项已迁出到独立的 PreferencesWindow（托盘「设置」打开），这里保持原功能定位。
+    /// </summary>
     public partial class SettingWindow : Window
     {
         public event Action<bool>? ReportFocusState;
@@ -16,12 +20,21 @@ namespace Notifier
         internal bool _isClosing;
         private bool _allowDeactivate;
 
-        private readonly SystemSettingsManager _settings = new();
+        // 复用进程内共享实例：避免每次打开面板都重建 NAudio 音频端点（枚举设备 + COM 初始化）
+        private SystemSettingsManager _settings => SystemSettingsManager.Shared;
         private bool _isInitializing;
+
+        // 滑块拖动的去抖：亮度走 WMI、音量走音频端点，都是毫秒级的同步调用，
+        // 拖动时每变一个像素就调一次会让 UI 明显掉帧，这里合并成"停下 100ms 后应用最新值"。
+        private CancellationTokenSource? _volumeDebounce;
+        private CancellationTokenSource? _brightnessDebounce;
+        private float _pendingVolume;
+        private int _pendingBrightness;
 
         public SettingWindow()
         {
             InitializeComponent();
+            SetupRootTransform();
             PlayPauseIcon.Text = "\u25B6";
 
             try
@@ -31,8 +44,33 @@ namespace Notifier
             }
             catch { }
 
+            // 阴影默认与原来 XAML 中的 "#00000040" 一致，但改为从设置读取，可被改色控制
+            ApplyAppearance();
+
             LoadCurrentSettings();
             this.Opened += OnFirstLoaded;
+
+            if (App.setting != null)
+                App.setting.SettingChanged += OnSettingChangedExternal;
+            ThemeManager.ThemeChanged += OnThemeChanged;
+
+            this.Closed += (_, __) =>
+            {
+                if (App.setting != null)
+                    App.setting.SettingChanged -= OnSettingChangedExternal;
+                ThemeManager.ThemeChanged -= OnThemeChanged;
+            };
+
+            // 兜底：窗口若没走 RequestClose 路径（被系统或其它途径关闭），
+            // 也要释放 SMTC 订阅并通知 App 做收尾，否则面板状态永远停留在"已打开"。
+            this.Closed += (_, __) =>
+            {
+                if (_isClosing) return;
+                _isClosing = true;
+                CleanupSMTC();
+                WindowClosed?.Invoke();
+            };
+
             this.Activated += (_, __) =>
             {
                 if (_allowDeactivate)
@@ -45,6 +83,39 @@ namespace Notifier
             };
         }
 
+        /// <summary>阴影 / 圆角 / 动画时长沿用设置（控制中心外观本身保持原样）。</summary>
+        private void ApplyAppearance()
+        {
+            try
+            {
+                var s = App.setting;
+                if (s == null || OuterBorder == null) return;
+
+                OuterBorder.BoxShadow = ThemeManager.BuildPopupShadow(s.PopupShadowHex, 24, 0);
+
+                _showDurationMs = Math.Max(0, s.PanelEnterMs);
+                _hideDurationMs = Math.Max(0, s.PanelExitMs);
+                _slideFromX = s.PanelSlideX;
+
+                if (!double.IsNaN(s.opacity))
+                    Opacity = s.opacity;
+            }
+            catch { }
+        }
+
+        private void OnSettingChangedExternal(Settings_Manager.SettingType type)
+        {
+            if (type == Settings_Manager.SettingType.Theme ||
+                type == Settings_Manager.SettingType.Animation ||
+                type == Settings_Manager.SettingType.Opacity ||
+                type == Settings_Manager.SettingType.Reset)
+            {
+                ApplyAppearance();
+            }
+        }
+
+        private void OnThemeChanged() => ApplyAppearance();
+
         private void LoadCurrentSettings()
         {
             _isInitializing = true;
@@ -53,18 +124,28 @@ namespace Notifier
                 float vol = _settings.GetSystemVolume();
                 VolumeSlider.Value = vol * 100.0;
 
-                int brightnessPercent;
-                if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+                // 亮度读取（硬件路径要走一次 WMI 查询，几十毫秒）放后台，不拖慢窗口弹出动画
+                _ = Task.Run(() =>
                 {
-                    brightnessPercent = _settings.GetScreenBrightness();
-                }
-                else
-                {
-                    int sim = _settings.GetSimulatedBrightness();
-                    brightnessPercent = sim >= 0 ? sim : 100;
-                }
+                    int brightnessPercent;
+                    if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+                    {
+                        brightnessPercent = _settings.GetScreenBrightness();
+                    }
+                    else
+                    {
+                        int sim = _settings.GetSimulatedBrightness();
+                        brightnessPercent = sim >= 0 ? sim : 100;
+                    }
 
-                BrightnessSlider.Value = Math.Clamp(brightnessPercent, 0, 100);
+                    var value = Math.Clamp(brightnessPercent, 0, 100);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        _isInitializing = true;
+                        BrightnessSlider.Value = value;
+                        _isInitializing = false;
+                    });
+                });
             }
             finally
             {
@@ -78,32 +159,72 @@ namespace Notifier
             _allowDeactivate = true;
             await AnimateShowAsync();
 
-            VolumeSlider.ValueChanged += (_, _) =>
-            {
-                if (_isInitializing) return;
-                float level = (float)(VolumeSlider.Value / 100.0);
-                _settings.SetSystemVolume(level);
-            };
-
-            BrightnessSlider.ValueChanged += (_, _) =>
-            {
-                if (_isInitializing) return;
-                int percent = (int)Math.Clamp(BrightnessSlider.Value, 0, 100);
-                if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
-                {
-                    _settings.TrySetScreenBrightness(percent);
-                }
-                else
-                {
-                    int safePercent = Math.Max(5, percent);
-                    _settings.SetSimulatedBrightness(safePercent);
-                }
-            };
+            VolumeSlider.ValueChanged += (_, _) => ScheduleVolumeApply();
+            BrightnessSlider.ValueChanged += (_, _) => ScheduleBrightnessApply();
 
             InitializeSMTC();
             BtnPrevious.Click += OnPreviousClicked;
             BtnPlayPause.Click += OnPlayPauseClicked;
             BtnNext.Click += OnNextClicked;
+        }
+
+        private void ScheduleVolumeApply()
+        {
+            if (_isInitializing) return;
+
+            _pendingVolume = (float)(VolumeSlider.Value / 100.0);
+            Debounce(ref _volumeDebounce, 80, () => _settings.SetSystemVolume(_pendingVolume));
+        }
+
+        private void ScheduleBrightnessApply()
+        {
+            if (_isInitializing) return;
+
+            _pendingBrightness = (int)Math.Clamp(BrightnessSlider.Value, 0, 100);
+            Debounce(ref _brightnessDebounce, 120, ApplyPendingBrightness);
+        }
+
+        private void ApplyPendingBrightness()
+        {
+            int percent = _pendingBrightness;
+            if (_settings.BrightnessCapability == BrightnessCapability.Hardware)
+            {
+                _settings.TrySetScreenBrightness(percent);
+            }
+            else
+            {
+                _settings.SetSimulatedBrightness(Math.Max(5, percent));
+            }
+        }
+
+        /// <summary>合并短时间内的连续调用，只执行最后一次（尾部去抖）。</summary>
+        private static void Debounce(ref CancellationTokenSource? cts, int delayMs, Action action)
+        {
+            // 先取消上一轮，再替换。旧的 CTS 在取消后即可释放。
+            var previous = cts;
+            var source = new CancellationTokenSource();
+            cts = source;
+            var token = source.Token;
+
+            if (previous != null)
+            {
+                try { previous.Cancel(); } catch { }
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try { await Task.Delay(delayMs, token); }
+                catch
+                {
+                    // 被后一轮取代（取消/释放）就静默退出
+                    return;
+                }
+
+                if (token.IsCancellationRequested) return;
+
+                try { action(); }
+                catch (Exception ex) { Logger.Error("应用设置失败", ex); }
+            });
         }
 
         internal void RequestClose()
@@ -116,7 +237,7 @@ namespace Notifier
         private void SafeClose()
         {
             WindowClosed?.Invoke();
-            _settings.Dispose();
+            // 共享实例由 App 退出时统一释放（这里释放会导致下次打开面板拿到已 dispose 的对象）
             CleanupSMTC();
             Close();
         }
@@ -127,46 +248,71 @@ namespace Notifier
             SafeClose();
         }
 
-        private async Task AnimateShowAsync()
+        // ===== 面板进出场动画参数 =====
+        // 时间驱动替换"固定帧数 + Task.Delay"，时长与位移从设置读取并缓存成字段。
+        private double _slideFromX = -420;
+        private int _showDurationMs = 240;
+        private int _hideDurationMs = 200;
+
+        private readonly TranslateTransform _rootTranslate = new();
+        private readonly ScaleTransform _rootScale = new() { ScaleX = 1, ScaleY = 1 };
+
+        private void SetupRootTransform()
         {
             try
             {
-                const int frames = 8;
-                const int msPerFrame = 4;
-                double fromOpacity = 0.0, toOpacity = 1.0;
-                double fromX = -420, toX = 0;
-
-                for (int i = 0; i <= frames; i++)
+                RootGrid.RenderTransform = new TransformGroup
                 {
-                    double t = (double)i / frames;
-                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    if (RootGrid.RenderTransform is TranslateTransform tr)
-                        tr.X = fromX + (toX - fromX) * t;
-                    await Task.Delay(msPerFrame);
-                }
+                    Children = { _rootTranslate, _rootScale }
+                };
+                RootGrid.RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative);
             }
             catch { }
         }
 
-        private async Task AnimateHideAsync()
+        private Task AnimateShowAsync()
         {
             try
             {
-                const int frames = 8;
-                const int msPerFrame = 4;
-                double fromOpacity = RootGrid.Opacity, toOpacity = 0.0;
-                double fromX = 0, toX = -420;
-
-                for (int i = 0; i <= frames; i++)
+                return UiTween.RunAsync(_showDurationMs, t =>
                 {
-                    double t = (double)i / frames;
-                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    if (RootGrid.RenderTransform is TranslateTransform tr)
-                        tr.X = fromX + (toX - fromX) * t;
-                    await Task.Delay(msPerFrame);
-                }
+                    double e = Easing.OutCubic(t);
+                    double s = Easing.OutBackSoft(t);
+
+                    RootGrid.Opacity = Math.Min(1, Easing.OutQuad(t / 0.7));
+                    _rootTranslate.X = _slideFromX * (1 - e);
+
+                    double scale = 0.97 + 0.03 * s;
+                    _rootScale.ScaleX = scale;
+                    _rootScale.ScaleY = scale;
+                });
             }
-            catch { }
+            catch
+            {
+                RootGrid.Opacity = 1;
+                return Task.CompletedTask;
+            }
+        }
+
+        private Task AnimateHideAsync()
+        {
+            try
+            {
+                double fromOpacity = RootGrid.Opacity;
+                double fromX = _rootTranslate.X;
+
+                return UiTween.RunAsync(_hideDurationMs, t =>
+                {
+                    double e = Easing.InCubic(t);
+                    RootGrid.Opacity = fromOpacity * (1 - Easing.InQuad(t));
+                    _rootTranslate.X = fromX + (_slideFromX - fromX) * e;
+                });
+            }
+            catch
+            {
+                RootGrid.Opacity = 0;
+                return Task.CompletedTask;
+            }
         }
 
         private void PositionWindow()

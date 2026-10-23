@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -35,7 +35,6 @@ namespace Notifier
 
         private bool _summaryFocus;
         private bool _settingFocus;
-        private bool on_setting = false;
         private CancellationTokenSource? _dismissCts;
 
         private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -55,8 +54,20 @@ namespace Notifier
 
             base.OnFrameworkInitializationCompleted();
             sets.init_settings();
+            // 主题桥接必须在任何窗口创建之前：之后所有窗口的 DynamicResource
+            // 都会读到按设置覆盖过的画笔，不需要重启即可换肤。
+            ThemeManager.Initialize();
             InitializeNotifyIcon();
             Logger.Info("托盘图标已初始化");
+            // 后台预热消息缓存，把首次读盘 + JSON 反序列化的开销挪出 UI 线程
+            ToastMessageStore.WarmUp();
+            // 预热系统设置管理器：它的构造会初始化 NAudio 音频端点（COM）并做一次 WMI 亮度能力探测，
+            // 合计可达数百毫秒。放在启动后台做，避免首次打开设置面板时卡这一下。
+            _ = Task.Run(() =>
+            {
+                try { _ = SystemSettingsManager.Shared; }
+                catch (Exception ex) { Logger.Error("预热系统设置管理器失败", ex); }
+            });
             _ = InitializeListenerAsync();
             _ = Task.Run(async () =>
             {
@@ -69,12 +80,20 @@ namespace Notifier
         {
             Logger.Info($"应用退出 (ListenerActive={_listener != null})");
             try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch (Exception ex) { Logger.Error("停止监听时异常", ex); }
+            try { ToastMessageStore.PersistNow(); } catch (Exception ex) { Logger.Error("保存通知缓存时异常", ex); }
+            try { sets.SaveNow(); } catch (Exception ex) { Logger.Error("保存设置时异常", ex); }
+            try { if (SystemSettingsManager.IsSharedCreated) SystemSettingsManager.Shared.Dispose(); } catch (Exception ex) { Logger.Error("释放系统设置管理器时异常", ex); }
             try { _notifyIcon?.Dispose(); } catch (Exception ex) { Logger.Error("释放托盘图标时异常", ex); }
+            Logger.Flush();
         }
 
         private void EnsureMainWindow()
         {
-            if (_currentToastWindow == null || !_currentToastWindow.IsVisible)
+            // 原来这里还判了 !IsVisible：弹窗 Hide 之后（一条消息显示完就是 Hide）
+            // 每次来新消息都会 new 一个 MainWindow —— 重新解析 XAML、重新建窗口句柄、
+            // 重新注册事件。隐藏的窗口可以直接复用，窗口真正 Close 时下面的 handler
+            // 已经把它置空，那时才会重建。
+            if (_currentToastWindow == null)
             {
                 _currentToastWindow = new MainWindow();
                 AttachMainWindowHandlers(_currentToastWindow);
@@ -235,19 +254,9 @@ namespace Notifier
             var setting = new Forms.ToolStripMenuItem("设置");
             setting.Click += (_, __) =>
             {
-                if (on_setting) return;
-
-                on_setting = true;
-                AddMessage("设置", "打开设置窗口", "Notifier");
-
-                var settingForm = new Set(sets);
-                settingForm.FormClosed += (_, __) =>
-                {
-                    on_setting = false;
-                    AddMessage("设置", "设置窗口已关闭", "Notifier");
-                };
-                settingForm.StartPosition = Forms.FormStartPosition.CenterScreen;
-                settingForm.Show();
+                // 改用 Avalonia 设置窗口（原 WinForms 设置窗体已移除）。
+                // Open() 内部会把创建/显示投递到 Avalonia UI 线程。
+                PreferencesWindow.Open();
             };
             menu.Items.Add(setting);
 
@@ -383,8 +392,8 @@ namespace Notifier
             if (!sets.is_toast_enabled) return;
             ToastMessageStore.Add(toast);
             SetAlertIcon();
+            // 汇总面板通过 App.OnNewToastDetected 自行合并刷新，这里不再额外触发一次全量重建
             OnNewToastDetected?.Invoke(toast);
-            _summaryWindow?.RefreshMessages();
 
             Logger.Info($"检测到新通知 Title=\"{toast.Title}\" App=\"{toast.AppName}\" Aumid=\"{toast.Aumid}\"");
 
@@ -403,28 +412,64 @@ namespace Notifier
                 SetNormalIcon();
         }
 
+        // 托盘图标解码（ICO → GDI 位图）不便宜，而且状态切换非常频繁，这里做一次性缓存
+        private static System.Drawing.Icon? _iconNormal;
+        private static System.Drawing.Icon? _iconAlert;
+
+        private static System.Drawing.Icon? LoadEmbeddedIcon(string resourceName)
+        {
+            try
+            {
+                var stream = typeof(App).Assembly.GetManifestResourceStream(resourceName);
+                if (stream == null) return null;
+                return new System.Drawing.Icon(stream);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private void SetNormalIcon()
         {
-            try { _notifyIcon!.Icon = new System.Drawing.Icon(GetType().Assembly.GetManifestResourceStream("Notifier.Resources.icon_normal.ico")!); }
-            catch { _notifyIcon!.Icon = System.Drawing.SystemIcons.Application; }
+            try
+            {
+                _iconNormal ??= LoadEmbeddedIcon("Notifier.Resources.icon_normal.ico");
+                _notifyIcon!.Icon = _iconNormal ?? System.Drawing.SystemIcons.Application;
+            }
+            catch { }
         }
 
         private void SetAlertIcon()
         {
-            try { _notifyIcon!.Icon = new System.Drawing.Icon(GetType().Assembly.GetManifestResourceStream("Notifier.Resources.icon_alert.ico")!); }
-            catch { _notifyIcon!.Icon = System.Drawing.SystemIcons.Application; }
+            try
+            {
+                _iconAlert ??= LoadEmbeddedIcon("Notifier.Resources.icon_alert.ico");
+                _notifyIcon!.Icon = _iconAlert ?? System.Drawing.SystemIcons.Application;
+            }
+            catch { }
         }
+
+        private static int _packaged = -1; // -1 未探测 / 0 未打包 / 1 已打包
 
         private static bool IsPackaged()
         {
+            // 结果不会变化，缓存起来，避免每次判断都做两次 kernel32 调用
+            var cached = Volatile.Read(ref _packaged);
+            if (cached >= 0) return cached == 1;
+
+            var result = 0;
             try
             {
                 var length = 0u;
                 GetCurrentPackageFullName(ref length, null);
                 var sb = new StringBuilder((int)length);
-                return GetCurrentPackageFullName(ref length, sb) == 0;
+                result = GetCurrentPackageFullName(ref length, sb) == 0 ? 1 : 0;
             }
-            catch { return false; }
+            catch { result = 0; }
+
+            Volatile.Write(ref _packaged, result);
+            return result == 1;
         }
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]

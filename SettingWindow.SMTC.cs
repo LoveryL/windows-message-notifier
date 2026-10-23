@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -18,6 +18,7 @@ namespace Notifier
         private bool _smtcInitialized;
         private string _lastTitle = string.Empty;  // 记录上一次的标题，用于检测变化
         private bool _smtcBusy = false; // 防止并发执行 SMTC 操作
+        private bool _updatingMediaUi = false; // 合并并发的媒体信息刷新
 
         /// <summary>
         /// 初始化 SMTC（在窗口加载后调用）
@@ -34,6 +35,7 @@ namespace Notifier
                 // 订阅 SMTC 事件
                 _smtcController.OnPlaybackStateChanged += OnSmtcPlaybackStateChanged;
                 _smtcController.OnSessionChanged += OnSmtcSessionChanged;
+                _smtcController.OnMediaPropertiesChanged += OnSmtcMediaPropertiesChanged;
 
                 // 尝试获取当前媒体信息并更新 UI
                 TryUpdateMediaUI();
@@ -63,11 +65,16 @@ namespace Notifier
                 return;
             }
 
+            // 状态变化/会话变化可能短时间内连发，用标志位合并，避免并发拉取同一份媒体信息
+            if (_updatingMediaUi) return;
+            _updatingMediaUi = true;
+
             try
             {
-                // 获取媒体信息（在后台线程执行，避免 UI 线程死锁）
-                MediaInfo mediaInfo = await Task.Run(() => _smtcController.GetCurrentMediaInfo());
-                PlaybackState playbackState = await Task.Run(() => _smtcController.GetPlaybackStatus());
+                // 直接 await WinRT 异步接口，不再 Task.Run(() => 同步阻塞)：
+                // 后者会白占一个线程池线程，且在 STA 上下文下有死锁风险。
+                MediaInfo mediaInfo = await _smtcController.GetCurrentMediaInfoAsync();
+                PlaybackState playbackState = _smtcController.GetPlaybackStatus();
 
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
@@ -94,6 +101,10 @@ namespace Notifier
             catch (Exception ex)
             {
                 Debug.WriteLine($"更新媒体 UI 失败: {ex.Message}");
+            }
+            finally
+            {
+                _updatingMediaUi = false;
             }
         }
 
@@ -151,6 +162,15 @@ namespace Notifier
         }
 
         /// <summary>
+        /// 媒体属性变化（切歌）：立即刷新，省掉固定等待
+        /// </summary>
+        private void OnSmtcMediaPropertiesChanged()
+        {
+            // 该事件由 WinRT 回调触发，不一定在 UI 线程
+            Dispatcher.UIThread.Post(() => TryUpdateMediaUI());
+        }
+
+        /// <summary>
         /// 上一首按钮点击处理（async void + Task.Run 避免死锁）
         /// </summary>
         private async void OnPreviousClicked(object? sender, RoutedEventArgs e)
@@ -159,11 +179,12 @@ namespace Notifier
             _smtcBusy = true;
             try
             {
-                // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
-                await Task.Run(() => _smtcController.SwitchTrack(TrackDirection.Previous));
-                
-                // 延迟一小段时间后更新媒体信息
-                await Task.Delay(500);
+                // 直接 await 异步接口，不再占用线程池线程做同步阻塞等待
+                await _smtcController.SwitchTrackAsync(TrackDirection.Previous);
+
+                // 主要靠 MediaPropertiesChanged 事件刷新；这里只留一次短兜底，
+                // 防止个别播放器不发属性变更事件导致 UI 不更新。
+                await Task.Delay(250);
                 TryUpdateMediaUI();
             }
             catch (Exception ex)
@@ -185,7 +206,7 @@ namespace Notifier
             _smtcBusy = true;
            try
 {
-    await Task.Run(() => _smtcController.TogglePlayPause());
+    await _smtcController.TogglePlayPauseAsync();
     await Dispatcher.UIThread.InvokeAsync(() => TryUpdateMediaUI());
 }
 catch (Exception ex)
@@ -207,11 +228,11 @@ finally
             _smtcBusy = true;
             try
             {
-                // 在后台线程执行 SMTC 操作，避免 UI 线程死锁
-                await Task.Run(() => _smtcController.SwitchTrack(TrackDirection.Next));
-                
-                // 延迟一小段时间后更新媒体信息
-                await Task.Delay(500);
+                // 直接 await 异步接口，不再占用线程池线程做同步阻塞等待
+                await _smtcController.SwitchTrackAsync(TrackDirection.Next);
+
+                // 同上：事件驱动刷新 + 短兜底
+                await Task.Delay(250);
                 TryUpdateMediaUI();
             }
             catch (Exception ex)
@@ -233,6 +254,7 @@ finally
             {
                 _smtcController.OnPlaybackStateChanged -= OnSmtcPlaybackStateChanged;
                 _smtcController.OnSessionChanged -= OnSmtcSessionChanged;
+                _smtcController.OnMediaPropertiesChanged -= OnSmtcMediaPropertiesChanged;
                 _smtcController.Dispose();
                 _smtcController = null;
             }

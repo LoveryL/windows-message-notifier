@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Notifier.PreferencesWindow"
+        Title="设置"
+        Width="640" Height="720"
+        MinWidth="480" MinHeight="400"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="Full"
+        CanResize="True"
+        ShowInTaskbar="True"
+        TransparencyLevelHint="None"
+        FontFamily="{DynamicResource AppFontFamily}"
+        Background="{DynamicResource LiquidGlassBackground}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="18,14,18,10">
+            <StackPanel Spacing="2">
+                <TextBlock Text="设置" FontWeight="SemiBold" FontSize="{DynamicResource FontSizeTitle}"
+                           Foreground="{DynamicResource LiquidGlassForeground}" />
+                <TextBlock Text="改动即时生效并自动保存，无需重启"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           Foreground="{DynamicResource PopupMutedText}" />
+            </StackPanel>
+        </Border>
+
+        <!-- 全部可调项由 SettingsPanelBuilder 在代码中填充 -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="18,0">
+            <StackPanel x:Name="SettingsHost" Spacing="2" Margin="0,0,0,12" />
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Padding="18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText" Grid.Column="0"
+                           FontSize="{DynamicResource FontSizeCaption}"
+                           Foreground="{DynamicResource PopupMutedText}"
+                           VerticalAlignment="Center" />
+                <Button x:Name="CloseButton" Grid.Column="1"
+                        Content="关闭"
+                        Padding="14,5"
+                        FontSize="{DynamicResource FontSizeBody}"
+                        Foreground="{DynamicResource LiquidGlassForeground}"
+                        Cursor="Hand" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

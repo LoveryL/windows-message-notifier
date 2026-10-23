@@ -97,7 +97,28 @@ namespace Notifier
         private const int VK_LSHIFT = 0xA0;
         private const int VK_RSHIFT = 0xA1;
 
+        // 窗口句柄一经确定就不再变化：旧的反射 BFS 搜索每次弹窗都要跑一遍（枚举平台实现的
+        // 全部属性/字段并逐个取值）。这里缓存句柄，并用一次 IsWindow 做有效性校验
+        // （一次 Win32 调用，开销可忽略），避免窗口重建后仍然拿着失效句柄。
+        private IntPtr _hwnd;
+        private bool _hwndResolved;
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindow(IntPtr hWnd);
+
         private IntPtr GetWindowHandle()
+        {
+            if (_hwndResolved && _hwnd != IntPtr.Zero && IsWindow(_hwnd))
+                return _hwnd;
+
+            _hwndResolved = true;
+            try { _hwnd = ResolveWindowHandle(); }
+            catch { _hwnd = IntPtr.Zero; }
+
+            return _hwnd;
+        }
+
+        private IntPtr ResolveWindowHandle()
         {
             try
             {
@@ -273,7 +294,7 @@ namespace Notifier
 {
     try
     {
-        var hwnd = this.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        var hwnd = GetWindowHandle();
         if (hwnd == IntPtr.Zero) return;
         var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         long ex = exPtr.ToInt64();
@@ -289,7 +310,7 @@ private void EnableMouseTransparency()
 {
     try
     {
-        var hwnd = this.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        var hwnd = GetWindowHandle();
         if (hwnd == IntPtr.Zero) return;
         var exPtr = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         long ex = exPtr.ToInt64();
@@ -301,35 +322,41 @@ private void EnableMouseTransparency()
     catch { }
 }
 
-        private async void AnimateBorderToColor(Avalonia.Media.Color target)
+        // 时间驱动 + 复用同一个画笔实例：
+        // 旧实现是 8 帧 × Task.Delay(15ms)，且每帧 new 一个 SolidColorBrush。
+        // 现在总时长精确 200ms，动画期间零分配。
+
+        private void AnimateBorderToColor(Avalonia.Media.Color target)
         {
-            try
+            Dispatcher.UIThread.Post(async () =>
             {
-                var outer = this.FindControl<Border>("OuterBorder");
-                if (outer == null) return;
-                var current = Colors.Transparent;
-                if (outer.Background is SolidColorBrush scb)
-                    current = scb.Color;
-                const int frames = 8;
-                const int msPerFrame = 15;
-                for (int i = 1; i <= frames; i++)
+                try
                 {
-                    double t = (double)i / frames;
-                    byte r = (byte)(current.R + (target.R - current.R) * t);
-                    byte g = (byte)(current.G + (target.G - current.G) * t);
-                    byte b = (byte)(current.B + (target.B - current.B) * t);
-                    byte a = (byte)(current.A + (target.A - current.A) * t);
-                    var c = Avalonia.Media.Color.FromArgb(a, r, g, b);
-                    await Dispatcher.UIThread.InvokeAsync(() => outer.Background = new SolidColorBrush(c));
-                    await Task.Delay(msPerFrame);
+                    var outer = this.FindControl<Border>("OuterBorder");
+                    if (outer == null) return;
+
+                    var current = (outer.Background as SolidColorBrush)?.Color ?? Colors.Transparent;
+
+                    // 全程只用一个画笔，逐帧改 Color，不再每帧新建对象
+                    _borderAnimBrush ??= new SolidColorBrush(current);
+                    _borderAnimBrush.Color = current;
+                    outer.Background = _borderAnimBrush;
+
+                    await UiTween.RunAsync(_borderAnimMs, t =>
+                    {
+                        double e = Easing.OutQuad(t);
+                        _borderAnimBrush.Color = Avalonia.Media.Color.FromArgb(
+                            (byte)(current.A + (target.A - current.A) * e),
+                            (byte)(current.R + (target.R - current.R) * e),
+                            (byte)(current.G + (target.G - current.G) * e),
+                            (byte)(current.B + (target.B - current.B) * e));
+                    });
                 }
-            }
-            catch { }
+                catch { }
+            });
         }
 
         private bool _isExpandedByShift = false;
-        private const double DefaultWindowWidth = 375;
-        private const double DefaultWindowHeight = 65;
 
         private double CalculateExpandedHeightFromContent()
         {
@@ -340,14 +367,14 @@ private void EnableMouseTransparency()
                     .Trim();
 
                 if (string.IsNullOrEmpty(text))
-                    return DefaultWindowHeight;
+                    return _windowHeight;
 
                 var estimatedLines = Math.Max(1, (int)Math.Ceiling(text.Length / 30.0));
-                return Math.Min(420, DefaultWindowHeight + (estimatedLines - 1) * 18);
+                return Math.Min(_maxExpandedHeight, _windowHeight + (estimatedLines - 1) * 18);
             }
             catch
             {
-                return DefaultWindowHeight;
+                return _windowHeight;
             }
         }
 
@@ -360,7 +387,7 @@ private void EnableMouseTransparency()
                     tb.TextWrapping = expand ? TextWrapping.Wrap : TextWrapping.NoWrap;
                 }
 
-                this.Width = DefaultWindowWidth;
+                this.Width = _windowWidth;
                 this.InvalidateMeasure();
                 this.UpdateLayout();
 
@@ -376,12 +403,12 @@ private void EnableMouseTransparency()
                             var itemHeight = MessageList?.DesiredSize.Height ?? 0;
                             if (double.IsNaN(itemHeight) || itemHeight <= 0)
                             {
-                                this.Height = DefaultWindowHeight;
+                                this.Height = _windowHeight;
                                 return;
                             }
 
-                            var targetHeight = Math.Max(DefaultWindowHeight, itemHeight + 36);
-                            this.Height = Math.Min(420, targetHeight);
+                            var targetHeight = Math.Max(_windowHeight, itemHeight + 36);
+                            this.Height = Math.Min(_maxExpandedHeight, targetHeight);
 
                             this.InvalidateMeasure();
                             this.UpdateLayout();
@@ -391,7 +418,7 @@ private void EnableMouseTransparency()
                 }
                 else
                 {
-                    this.Height = DefaultWindowHeight;
+                    this.Height = _windowHeight;
                     this.InvalidateMeasure();
                     this.UpdateLayout();
                 }
@@ -411,7 +438,7 @@ private void EnableMouseTransparency()
                     tb.TextWrapping = TextWrapping.Wrap;
                 }
 
-                this.Width = DefaultWindowWidth;
+                this.Width = _windowWidth;
                 this.Height = CalculateExpandedHeightFromContent();
             }
             catch { }
@@ -429,8 +456,8 @@ private void EnableMouseTransparency()
                     tb.TextWrapping = TextWrapping.NoWrap;
                 }
 
-                this.Width = DefaultWindowWidth;
-                this.Height = DefaultWindowHeight;
+                this.Width = _windowWidth;
+                this.Height = _windowHeight;
             }
             catch { }
         }
@@ -442,33 +469,135 @@ private void EnableMouseTransparency()
         {
             InitializeComponent();
             MessageList.ItemsSource = _messageGroups;
+            SetupRootTransform();
 
-            try
-            {
-                if (App.setting != null && !double.IsNaN(App.setting.opacity))
-                    Opacity = App.setting.opacity;
-            }
-            catch { }
+            ApplySettings();
 
             this.Opened += (_, __) => PositionWindow();
             this.Closed += OnWindowClosed;
 
             if (App.setting != null)
                 App.setting.SettingChanged += OnSettingChanged;
+            ThemeManager.ThemeChanged += OnThemeChanged;
 
             var initialShowTime = App.setting != null ? Math.Max(1, App.setting.show_time) : 3;
             _displayTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(initialShowTime) };
             _displayTimer.Tick += OnDisplayTimerTick;
 
-            _ctrlPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            // 键盘状态只能轮询。间隔由设置控制（默认 150ms）：
+            // 每秒约 6~7 次唤醒，人手几乎感知不到差异，但常驻开销明显低于 100ms。
+            _ctrlPollTimer = new DispatcherTimer();
             _ctrlPollTimer.Tick += CheckCtrlState;
             // do not start polling until the window is actually displaying to reduce CPU usage
 
             this.PointerPressed += OnMouseLeftClick;
         }
 
+        #region 设置驱动的外观 / 动画参数
+
+        // 这些值在展示期间被高频读取（每帧、每次轮询），因此缓存成字段，
+        // 只在设置变更时刷新，避免热路径上反复查设置字典。
+        private double _windowWidth = 375;
+        private double _windowHeight = 65;
+        private double _maxExpandedHeight = 420;
+        private double _enterSlideX = 28;
+        private double _enterScaleFrom = 0.94;
+        private double _exitSlideX = 14;
+        private double _exitScaleTo = 0.97;
+        private int _enterDurationMs = 260;
+        private int _exitDurationMs = 170;
+        private int _borderAnimMs = 200;
+        private bool _animEnabled = true;
+        private int _pollIntervalMs = 150;
+
+        private Avalonia.Media.Color _ctrlHoldColor = Avalonia.Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+        private Avalonia.Media.Color _ctrlReleaseColor = Avalonia.Media.Color.FromArgb(0xAC, 0xFF, 0xFF, 0xFF);
+
+        /// <summary>把所有可调项应用到本窗口。构造与设置变更时各调一次。</summary>
+        private void ApplySettings()
+        {
+            var s = App.setting;
+
+            _windowWidth = Math.Max(200, s.PopupWidth);
+            _windowHeight = Math.Max(40, s.PopupHeight);
+            _maxExpandedHeight = Math.Max(_windowHeight, s.PopupMaxHeight);
+
+            _enterSlideX = s.EnterSlideX;
+            _enterScaleFrom = s.EnterScaleFrom;
+            _exitSlideX = s.ExitSlideX;
+            _exitScaleTo = s.ExitScaleTo;
+            _enterDurationMs = Math.Max(0, s.PopupEnterMs);
+            _exitDurationMs = Math.Max(0, s.PopupExitMs);
+            _borderAnimMs = Math.Max(0, s.BorderAnimMs);
+            _animEnabled = s.AnimEnabled;
+            _pollIntervalMs = Math.Clamp(s.PollIntervalMs, 50, 1000);
+
+            _ctrlHoldColor = ThemeManager.ParseColor(s.CtrlHoldHex) ?? _ctrlHoldColor;
+            _ctrlReleaseColor = ThemeManager.ParseColor(s.CtrlReleaseHex) ?? _ctrlReleaseColor;
+
+            // 动画总开关：关闭后时长归零，UiTween 会直接跳到终态（等价于无动画）
+            if (!_animEnabled)
+            {
+                _enterDurationMs = 0;
+                _exitDurationMs = 0;
+                _borderAnimMs = 0;
+            }
+
+            Width = _windowWidth;
+            Height = _windowHeight;
+            MinHeight = _windowHeight;
+
+            try
+            {
+                var outer = this.FindControl<Border>("OuterBorder");
+                if (outer != null)
+                {
+                    outer.CornerRadius = new CornerRadius(Math.Max(0, s.PopupCorner));
+                    outer.BoxShadow = ThemeManager.BuildPopupShadow(s.PopupShadowHex, 24, 0);
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (!double.IsNaN(s.opacity))
+                    Opacity = s.opacity;
+            }
+            catch { }
+
+            try
+            {
+                if (_ctrlPollTimer != null)
+                {
+                    bool wasRunning = _ctrlPollTimer.IsEnabled;
+                    _ctrlPollTimer.Interval = TimeSpan.FromMilliseconds(_pollIntervalMs);
+                    // Interval 赋值不会打断已在运行的计时器，按需重启一次让新间隔生效
+                    if (wasRunning)
+                    {
+                        _ctrlPollTimer.Stop();
+                        _ctrlPollTimer.Start();
+                    }
+                }
+            }
+            catch { }
+
+            try { PositionWindow(); } catch { }
+        }
+
+        private void OnThemeChanged() => ApplySettings();
+
+        #endregion
+
         private void OnSettingChanged(Settings_Manager.SettingType type)
         {
+            try
+            {
+                // 尺寸/动画/不透明度等变化都要重新应用；show_time 只影响计时器
+                if (type != Settings_Manager.SettingType.show_time)
+                    ApplySettings();
+            }
+            catch { }
+
             if (type != Settings_Manager.SettingType.show_time)
                 return;
 
@@ -498,12 +627,59 @@ private void EnableMouseTransparency()
                 var t = string.IsNullOrWhiteSpace(title) ? "新通知" : title;
                 var b = string.IsNullOrWhiteSpace(body) ? "" : body;
 
-                _messageQueue.Add(new QueuedMessage(DateTime.Now, t, b, processName ?? ""));
-                _messageQueue.Sort((a, c) => a.Time.CompareTo(c.Time));
+                var msg = new QueuedMessage(DateTime.Now, t, b, processName ?? "");
+
+                // 队列基本是按时间追加的，没必要每来一条就整队 Sort（O(n log n) + 委托分配）。
+                // 绝大多数情况直接追加；只有乱序时才找插入位置。
+                if (_messageQueue.Count == 0 || _messageQueue[^1].Time <= msg.Time)
+                {
+                    _messageQueue.Add(msg);
+                }
+                else
+                {
+                    int index = _messageQueue.FindIndex(m => m.Time > msg.Time);
+                    if (index < 0) _messageQueue.Add(msg);
+                    else _messageQueue.Insert(index, msg);
+                }
 
                 if (!_isDisplaying && !_isClosed)
                     StartDisplaying();
             });
+        }
+
+        // ===== 弹窗进出场动画参数 =====
+        // 弹窗从屏幕右侧滑入：位移 + 轻微缩放 + 淡入，末段带一点过冲回弹（Q 弹）。
+
+        // 动画全程复用同一组变换对象与画笔，避免每帧产生垃圾
+        private readonly TranslateTransform _rootTranslate = new();
+        private readonly ScaleTransform _rootScale = new() { ScaleX = 1, ScaleY = 1 };
+        private SolidColorBrush? _borderAnimBrush;
+
+        /// <summary>初始化 RootGrid 的变换（位移 + 缩放，以右侧中点为锚点）。</summary>
+        private void SetupRootTransform()
+        {
+            try
+            {
+                RootGrid.RenderTransform = new TransformGroup
+                {
+                    Children = { _rootTranslate, _rootScale }
+                };
+                // 窗口贴在右上角，缩放/位移以右中点为原点更符合直觉
+                RootGrid.RenderTransformOrigin = new RelativePoint(1, 0.5, RelativeUnit.Relative);
+            }
+            catch { }
+        }
+
+        /// <summary>把变换恢复到静止状态，避免下次出场时起点被上一段动画污染。</summary>
+        private void ResetRootTransform()
+        {
+            try
+            {
+                _rootTranslate.X = 0;
+                _rootScale.ScaleX = 1;
+                _rootScale.ScaleY = 1;
+            }
+            catch { }
         }
 
         private async Task FadeOutAsync()
@@ -512,39 +688,53 @@ private void EnableMouseTransparency()
             _isClosingAnimation = true;
             try
             {
-                const int frames = 10;
-                const int msPerFrame = 12;
                 double fromOpacity = RootGrid.Opacity;
-                double toOpacity = 0.0;
+                double fromX = _rootTranslate.X;
 
-                for (int i = 0; i <= frames; i++)
+                await UiTween.RunAsync(_exitDurationMs, t =>
                 {
-                    double t = (double)i / frames;
-                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    await Task.Delay(msPerFrame);
-                }
+                    // 退场用 ease-in：起步慢、收尾快，视觉上"被收走"
+                    double e = Easing.InCubic(t);
+                    RootGrid.Opacity = fromOpacity * (1 - Easing.InQuad(t));
+                    _rootTranslate.X = fromX + (_exitSlideX - fromX) * e;
+                    double s = 1 - (1 - _exitScaleTo) * e;
+                    _rootScale.ScaleX = s;
+                    _rootScale.ScaleY = s;
+                });
             }
             catch { }
-            finally { _isClosingAnimation = false; }
+            finally
+            {
+                _isClosingAnimation = false;
+            }
         }
 
-        private async Task FadeInAsync()
+        private Task FadeInAsync()
         {
             try
             {
-                const int frames = 10;
-                const int msPerFrame = 12;
-                double fromOpacity = RootGrid.Opacity;
-                double toOpacity = 1.0;
-
-                for (int i = 0; i <= frames; i++)
+                // 入场动画失败也不能影响消息展示，错误在这里收敛
+                return UiTween.RunAsync(_enterDurationMs, t =>
                 {
-                    double t = (double)i / frames;
-                    RootGrid.Opacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    await Task.Delay(msPerFrame);
-                }
+                    // 位移与缩放用 OutBack：末段轻微越过终点再回弹 = Q 弹
+                    double b = Easing.OutBack(t);
+                    // 透明度单独走更快的一条曲线，避免"先看清了还在动"
+                    double o = Easing.OutQuad(t / 0.65);
+                    RootGrid.Opacity = o > 1 ? 1 : o;
+
+                    _rootTranslate.X = _enterSlideX * (1 - b);
+
+                    double s = _enterScaleFrom + (1 - _enterScaleFrom) * b;
+                    _rootScale.ScaleX = s;
+                    _rootScale.ScaleY = s;
+                });
             }
-            catch { }
+            catch
+            {
+                RootGrid.Opacity = 1;
+                ResetRootTransform();
+                return Task.CompletedTask;
+            }
         }
 
         private void StopDisplayTimer()
@@ -566,6 +756,8 @@ private void EnableMouseTransparency()
                 RootGrid.Opacity = 0;
                 Hide();
                 RevokeTopmost();
+                // 复位变换，让下一次弹出从干净的起点开始
+                ResetRootTransform();
             }
             if (clearQueue)
             {
@@ -629,14 +821,19 @@ private void EnableMouseTransparency()
             {
                 PositionWindow();
                 ShowCurrentQueueHeadImmediate();
+                // 先把内容复位到"入场起点"再显示窗口，否则第一帧会闪一下最终状态
+                ResetRootTransform();
+                RootGrid.Opacity = 0;
             });
 
-            RootGrid.Opacity = 1;
             ShowNoActivateTopmost();
             EnableMouseTransparency();
             this.Focusable = false;
             try { if (this.WindowState == WindowState.Minimized) this.WindowState = WindowState.Normal; } catch { }
             try { if (_ctrlPollTimer != null && !_ctrlPollTimer.IsEnabled) _ctrlPollTimer.Start(); } catch { }
+
+            // 滑入 + 缩放 + 淡入（结束再开始计时，用户看完整条才开始倒计时）
+            await FadeInAsync();
             StartDisplayTimer();
         }
 
@@ -677,7 +874,7 @@ private void EnableMouseTransparency()
                 if (isCtrlDown && !_ctrlHeld)
                 {
                     _ctrlHeld = true;
-                    AnimateBorderToColor(Avalonia.Media.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+                    AnimateBorderToColor(_ctrlHoldColor);
                     if (_displayTimer.IsEnabled)
                     {
                         var remaining = _displayDeadline - DateTime.Now;
@@ -689,7 +886,7 @@ private void EnableMouseTransparency()
                 else if (!isCtrlDown && _ctrlHeld)
                 {
                     _ctrlHeld = false;
-                    AnimateBorderToColor(Avalonia.Media.Color.FromArgb(0xAC, 0xFF, 0xFF, 0xFF));
+                    AnimateBorderToColor(_ctrlReleaseColor);
                     if (_pausedRemaining.HasValue)
                     {
                         var rem = _pausedRemaining.Value;
@@ -726,6 +923,10 @@ private void EnableMouseTransparency()
             try { if (_hideTimer != null) { _hideTimer.Stop(); _hideTimer = null; } } catch { }
             try { if (_ctrlPollTimer != null) { _ctrlPollTimer.Stop(); _ctrlPollTimer.Tick -= CheckCtrlState; } } catch { }
             try { this.PointerPressed -= OnMouseLeftClick; } catch { }
+            // App.setting 是进程级单例，不解绑会让每一个已关闭的弹窗实例都无法被回收。
+            // 弹窗会被反复创建（隐藏后再次来消息就 new 一个），这是持续增长的内存泄漏。
+            try { if (App.setting != null) App.setting.SettingChanged -= OnSettingChanged; } catch { }
+            try { ThemeManager.ThemeChanged -= OnThemeChanged; } catch { }
         }
 
         private void StartHideTimer()

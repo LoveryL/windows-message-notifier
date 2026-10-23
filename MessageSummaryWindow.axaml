@@ -13,23 +13,15 @@
         Topmost="True"
         SystemDecorations="None">
 
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Notifier/ThemeResources.axaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
-
     <Grid x:Name="RootGrid" Opacity="0">
         <Grid.RenderTransform>
             <TranslateTransform X="-420"/>
         </Grid.RenderTransform>
-        <Border CornerRadius="20"
+        <Border x:Name="OuterBorder"
+                CornerRadius="20"
                 Background="{DynamicResource LiquidGlassBackground}"
                 BorderBrush="{DynamicResource GlassBorderBrush}"
-                BorderThickness="1"
-                BoxShadow="0 8 24 0 #00000024">
+                BorderThickness="1">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -46,10 +38,18 @@
 
                 <ScrollViewer Grid.Row="1" Margin="10,6,10,6" VerticalScrollBarVisibility="Auto">
                     <ItemsControl x:Name="MessageList" IsHitTestVisible="True">
+                        <!-- 启用 UI 虚拟化：原来用默认 StackPanel，进入面板时所有分组
+                             （最多数百个，每个还带一个嵌套 ItemsControl）会被一次性实例化并布局，
+                             消息一多就会有明显的打开卡顿。 -->
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="local:ToastMessageGroup">
-                                <Border CornerRadius="16"
-                                        Background="#12000000"
+                                <Border CornerRadius="{DynamicResource CardCornerRadius}"
+                                        Background="{DynamicResource CardBackground}"
                                         Padding="12,10"
                                         Margin="0,5"
                                         IsHitTestVisible="True"
@@ -76,12 +76,12 @@
                                                        Text="{Binding Title}"
                                                        FontWeight="SemiBold"
                                                        FontSize="{DynamicResource FontSizeTitle}"
-                                                       Foreground="#CC000000"
+                                                       Foreground="{DynamicResource CardTitleText}"
                                                        TextWrapping="Wrap" />
 
                                             <Border Grid.Column="1"
                                                     IsVisible="{Binding HasHiddenMessages}"
-                                                    Background="#FF3B30"
+                                                    Background="{DynamicResource BadgeBrush}"
                                                     CornerRadius="999"
                                                     Width="18" Height="18"
                                                     Margin="8,0,0,0"
@@ -108,14 +108,14 @@
                                                         <TextBlock Grid.Column="0"
                                                                    Text="{Binding Body}"
                                                                    FontSize="{DynamicResource FontSizeBody}"
-                                                                   Foreground="#88000000"
+                                                                   Foreground="{DynamicResource CardBodyText}"
                                                                    Margin="14,2,0,2"
                                                                    TextWrapping="Wrap" />
 
                                                         <StackPanel Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,0,4,0">
                                                             <TextBlock Text="{Binding Time, StringFormat='{}{0:HH:mm}'}"
                                                                        FontSize="10"
-                                                                       Foreground="#888888"
+                                                                       Foreground="{DynamicResource CardSubText}"
                                                                        HorizontalAlignment="Right" />
                                                         </StackPanel>
                                                     </Grid>
@@ -126,7 +126,7 @@
                                         <TextBlock Grid.Row="2"
                                                    Text="{Binding SourceApp}"
                                                    FontSize="{DynamicResource FontSizeCaption}"
-                                                   Foreground="#777777"
+                                                   Foreground="{DynamicResource CardSubText}"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,4,4,0"
                                                    TextTrimming="CharacterEllipsis"
@@ -153,7 +153,7 @@
                                 Grid.Column="1"
                                 Content="清除全部"
                                 Click="ClearButton_Click"
-                                Background="#D32F2F"
+                                Background="{DynamicResource DangerBrush}"
                                 Foreground="White"
                                 BorderThickness="0"
                                 FontSize="{DynamicResource FontSizeBody}"

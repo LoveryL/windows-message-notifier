@@ -15,23 +15,14 @@
         ShowActivated="False"
         Focusable="False">
 
-    <Window.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Notifier/ThemeResources.axaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Window.Resources>
-
     <Grid x:Name="RootGrid" Opacity="0">
         <Border x:Name="OuterBorder"
                 CornerRadius="10"
-                Background="#ACFFFFFF"
+                Background="{DynamicResource PopupBackground}"
                 BorderBrush="{DynamicResource GlassBorderBrush}"
                 BorderThickness="1"
                 Padding="8"
-                Margin="6"
-                BoxShadow="0 0 24 0 #00000040">
+                Margin="6">
             <ItemsControl x:Name="MessageList" IsHitTestVisible="False">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -40,7 +31,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="local:ToastMessageGroup">
-                        <Grid Width="347" VerticalAlignment="Top">
+                        <Grid VerticalAlignment="Top">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="34" />
                                 <ColumnDefinition Width="*" />
@@ -60,7 +51,7 @@
                                            Text="{Binding Title}"
                                            FontSize="{DynamicResource FontSizeTitle}"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource LiquidGlassForeground}"
+                                           Foreground="{DynamicResource PopupForeground}"
                                            TextTrimming="CharacterEllipsis"
                                            TextWrapping="NoWrap" />
                                 <ItemsControl Grid.Row="1" ItemsSource="{Binding Bodies}" IsHitTestVisible="False">
@@ -68,7 +59,7 @@
                                         <DataTemplate x:DataType="x:String">
                                             <TextBlock Text="{Binding}"
                                                        FontSize="{DynamicResource FontSizeBody}"
-                                                       Foreground="#AA000000"
+                                                       Foreground="{DynamicResource PopupBodyText}"
                                                        TextTrimming="CharacterEllipsis"
                                                        TextWrapping="NoWrap" />
                                         </DataTemplate>
@@ -83,12 +74,12 @@
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0"
                                            Text="{Binding Time, StringFormat='{}{0:t}'}"
-                                           Foreground="{DynamicResource LiquidGlassForeground}"
+                                           Foreground="{DynamicResource PopupMutedText}"
                                            FontSize="{DynamicResource FontSizeCaption}"
                                            HorizontalAlignment="Right" />
                                 <TextBlock Grid.Row="1"
                                            Text="{Binding ProcessName}"
-                                           Foreground="#888888"
+                                           Foreground="{DynamicResource PopupMutedText}"
                                            FontSize="10"
                                            HorizontalAlignment="Right"
                                            VerticalAlignment="Bottom"

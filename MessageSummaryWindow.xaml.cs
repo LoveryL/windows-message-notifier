@@ -40,11 +40,36 @@ namespace Notifier
         public MessageSummaryWindow()
         {
             InitializeComponent();
+            SetupRootTransform();
 
             try { if (App.setting != null && !double.IsNaN(App.setting.opacity)) Opacity = App.setting.opacity; } catch { }
 
             this.Opened += OnFirstLoaded;
             App.OnNewToastDetected += OnNewToast;
+            // 消息集合的任何变更（新增/删除/清空）都会走到一次合并刷新
+            ToastMessageStore.Changed += OnStoreChanged;
+            ApplySettings();
+            // 与 MainWindow 保持一致：显式判空后再订阅（App.setting 为静态属性，
+            // 编译器的可空流分析会在跨类型访问时保守地认为可能为 null）
+            if (App.setting != null)
+                App.setting.SettingChanged += OnSettingChangedExternal;
+            ThemeManager.ThemeChanged += OnThemeChanged;
+
+            // 兜底：窗口若没走 InternalRequestClose 路径（被系统或其它途径关闭），
+            // 也要解绑静态事件并通知 App 收尾，否则面板状态停在"已打开"，
+            // 内存缓存不会释放、消息也不会落盘。
+            this.Closed += (_, __) =>
+            {
+                App.OnNewToastDetected -= OnNewToast;
+                ToastMessageStore.Changed -= OnStoreChanged;
+                if (App.setting != null)
+                    App.setting.SettingChanged -= OnSettingChangedExternal;
+                ThemeManager.ThemeChanged -= OnThemeChanged;
+
+                if (_isClosing) return;
+                _isClosing = true;
+                WindowClosed?.Invoke();
+            };
             RefreshMessages();
 
             this.Activated += (_, __) =>
@@ -68,55 +93,116 @@ namespace Notifier
             ReportFocusState?.Invoke(true);
         }
 
-        private async Task AnimateShowAsync()
+        // ===== 面板进出场动画参数 =====
+        // 旧实现是 5 帧 × Task.Delay(3ms)：Windows 上 Task.Delay 的实际分辨率约 15ms，
+        // 3ms 会被拉成 15ms，420px 的位移只剩 5 帧、总时长约 75ms，看起来像"啪"一下瞬移。
+        // 现在改为时间驱动：240ms / ~60fps，约 14 帧，时长精确可控。
+        // 时长与位移改为从设置读取并缓存成字段：动画是热路径，不该每帧查设置
+        private double _slideFromX = -420;
+        private int _showDurationMs = 240;
+        private int _hideDurationMs = 200;
+
+        /// <summary>把设置里的尺寸/圆角/阴影/动画参数应用到本窗口。</summary>
+        private void ApplySettings()
         {
             try
             {
-                const int frames = 5;
-                const int msPerFrame = 3;
-                double fromOpacity = 0.0, toOpacity = 1.0;
-                double fromX = -420, toX = 0;
+                var s = App.setting;
 
-                for (int i = 0; i <= frames; i++)
+                Width = Math.Clamp(s.PanelWidth, MinWidth, 900);
+                Height = Math.Clamp(s.PanelHeight, MinHeight, 1100);
+
+                _slideFromX = s.PanelSlideX;
+                _showDurationMs = Math.Max(0, s.PanelEnterMs);
+                _hideDurationMs = Math.Max(0, s.PanelExitMs);
+
+                var outer = this.FindControl<Border>("OuterBorder");
+                if (outer != null)
                 {
-                    double t = (double)i / frames;
-                    double curOpacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    double curX = fromX + (toX - fromX) * t;
-
-                    RootGrid.Opacity = curOpacity;
-                    if (RootGrid.RenderTransform is TranslateTransform translate)
-                        translate.X = curX;
-
-                    await Task.Delay(msPerFrame);
+                    outer.CornerRadius = new CornerRadius(Math.Max(0, s.PanelCorner));
+                    outer.BoxShadow = ThemeManager.BuildPopupShadow(s.PopupShadowHex, 24, 8);
                 }
+
+                if (!double.IsNaN(s.opacity))
+                    Opacity = s.opacity;
             }
             catch { }
         }
 
-        private async Task AnimateHideAsync()
+        private void OnSettingChangedExternal(Settings_Manager.SettingType type)
+        {
+            if (type == Settings_Manager.SettingType.Size ||
+                type == Settings_Manager.SettingType.Animation ||
+                type == Settings_Manager.SettingType.Opacity ||
+                type == Settings_Manager.SettingType.Reset)
+            {
+                ApplySettings();
+            }
+        }
+
+        // 全程复用同一组变换对象，避免每帧产生垃圾
+        private readonly TranslateTransform _rootTranslate = new();
+        private readonly ScaleTransform _rootScale = new() { ScaleX = 1, ScaleY = 1 };
+
+        /// <summary>统一在代码里设置变换（位移 + 缩放），以左侧中点为锚点。</summary>
+        private void SetupRootTransform()
         {
             try
             {
-                const int frames = 5;
-                const int msPerFrame = 3;
-                double fromOpacity = RootGrid.Opacity;
-                double toOpacity = 0.0;
-                double fromX = 0, toX = -420;
-
-                for (int i = 0; i <= frames; i++)
+                RootGrid.RenderTransform = new TransformGroup
                 {
-                    double t = (double)i / frames;
-                    double curOpacity = fromOpacity + (toOpacity - fromOpacity) * t;
-                    double curX = fromX + (toX - fromX) * t;
-
-                    RootGrid.Opacity = curOpacity;
-                    if (RootGrid.RenderTransform is TranslateTransform translate)
-                        translate.X = curX;
-
-                    await Task.Delay(msPerFrame);
-                }
+                    Children = { _rootTranslate, _rootScale }
+                };
+                RootGrid.RenderTransformOrigin = new RelativePoint(0, 0.5, RelativeUnit.Relative);
             }
             catch { }
+        }
+
+        private Task AnimateShowAsync()
+        {
+            try
+            {
+                return UiTween.RunAsync(_showDurationMs, t =>
+                {
+                    // 位移距离大，用无过冲的 OutCubic，免得冲过头
+                    double e = Easing.OutCubic(t);
+                    // 缩放幅度小，可以带一点回弹，做出"贴上去"的手感
+                    double s = Easing.OutBackSoft(t);
+
+                    RootGrid.Opacity = Math.Min(1, Easing.OutQuad(t / 0.7));
+                    _rootTranslate.X = _slideFromX * (1 - e);
+
+                    double scale = 0.97 + 0.03 * s;
+                    _rootScale.ScaleX = scale;
+                    _rootScale.ScaleY = scale;
+                });
+            }
+            catch
+            {
+                RootGrid.Opacity = 1;
+                return Task.CompletedTask;
+            }
+        }
+
+        private Task AnimateHideAsync()
+        {
+            try
+            {
+                double fromOpacity = RootGrid.Opacity;
+                double fromX = _rootTranslate.X;
+
+                return UiTween.RunAsync(_hideDurationMs, t =>
+                {
+                    double e = Easing.InCubic(t);
+                    RootGrid.Opacity = fromOpacity * (1 - Easing.InQuad(t));
+                    _rootTranslate.X = fromX + (_slideFromX - fromX) * e;
+                });
+            }
+            catch
+            {
+                RootGrid.Opacity = 0;
+                return Task.CompletedTask;
+            }
         }
 
         internal void RequestCloseFromApp()
@@ -133,13 +219,34 @@ namespace Notifier
         private void SafeClose()
         {
             App.OnNewToastDetected -= OnNewToast;
+            ToastMessageStore.Changed -= OnStoreChanged;
             WindowClosed?.Invoke();
             Close();
         }
 
-        private void OnNewToast(ToastData t) => Dispatcher.UIThread.Post(RefreshMessages);
+        private void OnThemeChanged() => ApplySettings();
 
-        public void RefreshMessages() => RefreshMessageList(ToastMessageStore.GetAll());
+        private void OnNewToast(ToastData t) => RefreshMessages();
+
+        private void OnStoreChanged() => RefreshMessages();
+
+        private volatile bool _refreshPending;
+
+        /// <summary>
+        /// 合并刷新：短时间内到达的多条通知只在下一帧重建一次列表，
+        /// 避免"每来一条通知就整表重建 ItemsSource"（旧实现里 App 和本窗口还会各触发一次，等于翻倍）。
+        /// </summary>
+        public void RefreshMessages()
+        {
+            if (_refreshPending) return;
+            _refreshPending = true;
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                _refreshPending = false;
+                RefreshMessageList(ToastMessageStore.GetAll());
+            });
+        }
 
         private static string GetSourceAppLabel(ToastData m)
         {
@@ -161,53 +268,75 @@ namespace Notifier
             return "";
         }
 
-        private void RefreshMessageList(IEnumerable<ToastData> msgs)
+        private void RefreshMessageList(IReadOnlyList<ToastData> msgs)
         {
-            var ordered = msgs.ToList();
-            var groups = new Dictionary<string, List<ToastData>>();
+            // 用元组做 key：省掉每条消息一次字符串拼接（$"{title}||{app}"）的分配
+            var groups = new Dictionary<(string Title, string App), List<ToastData>>(msgs.Count);
 
-            foreach (var m in ordered)
+            foreach (var m in msgs)
             {
                 var titleKey = string.IsNullOrWhiteSpace(m.Title) ? "新通知" : m.Title;
-                var appKey = string.IsNullOrWhiteSpace(m.AppName) ? (string.IsNullOrWhiteSpace(m.Aumid) ? "<unknown>" : m.Aumid) : m.AppName;
-                var key = $"{titleKey}||{appKey}"; // group only when both title and app match
+                var appKey = string.IsNullOrWhiteSpace(m.AppName)
+                    ? (string.IsNullOrWhiteSpace(m.Aumid) ? "<unknown>" : m.Aumid)
+                    : m.AppName;
 
-                if (!groups.ContainsKey(key))
-                    groups[key] = new List<ToastData>();
+                var key = (titleKey, appKey);
+                if (!groups.TryGetValue(key, out var list))
+                {
+                    list = new List<ToastData>(1);
+                    groups.Add(key, list);
+                }
 
-                groups[key].Add(m);
+                list.Add(m);
             }
 
-            var items = groups.Select(g =>
+            var items = new List<ToastMessageGroup>(groups.Count);
+            var nowTicks = DateTime.Now.Ticks;
+
+            foreach (var pair in groups)
             {
-                var messages = g.Value
-                    .OrderBy(m => m.NotificationId == 0 ? DateTime.Now.Ticks : m.NotificationId)
-                    .ToList();
+                var messages = pair.Value;
+                // 原地排序，取代 OrderBy(...).ToList() 的迭代器 + 中间集合
+                messages.Sort((a, b) => OrderKey(a, nowTicks).CompareTo(OrderKey(b, nowTicks)));
 
                 var group = new ToastMessageGroup
                 {
-                    Title = messages.Select(m => string.IsNullOrWhiteSpace(m.Title) ? "新通知" : m.Title).FirstOrDefault() ?? "新通知",
-                    Bodies = new ObservableCollection<string>(messages
-                        .Where(m => !string.IsNullOrWhiteSpace(m.Body))
-                        .Select(m => m.Body)),
-                    SourceApp = messages.Select(m => GetSourceAppLabel(m)).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? string.Empty,
-                    SampleAumid = messages.Select(m => m.Aumid).FirstOrDefault(a => !string.IsNullOrWhiteSpace(a)),
-                    ProcessName = messages.Select(m => m.ProcessName).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) ?? string.Empty,
+                    Title = pair.Key.Title,
                     Time = DateTime.Now
                 };
 
-                foreach (var message in messages)
-                    group.Messages.Add(message);
+                // 单次遍历同时完成 Bodies / SourceApp / SampleAumid / ProcessName 的提取，
+                // 旧实现用了 4 次独立的 LINQ 遍历
+                foreach (var m in messages)
+                {
+                    group.Messages.Add(m);
 
-                return group;
-            }).ToList();
+                    if (!string.IsNullOrWhiteSpace(m.Body))
+                        group.Bodies.Add(m.Body);
 
-            foreach (var item in items)
-                item.RefreshDisplay();
+                    if (group.SourceApp.Length == 0)
+                    {
+                        var label = GetSourceAppLabel(m);
+                        if (!string.IsNullOrWhiteSpace(label)) group.SourceApp = label;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(group.SampleAumid) && !string.IsNullOrWhiteSpace(m.Aumid))
+                        group.SampleAumid = m.Aumid;
+
+                    if (group.ProcessName.Length == 0 && !string.IsNullOrWhiteSpace(m.ProcessName))
+                        group.ProcessName = m.ProcessName;
+                }
+
+                group.RefreshDisplay();
+                items.Add(group);
+            }
 
             MessageList.ItemsSource = items;
-            StatusText.Text = ordered.Count > 0 ? $"共 {ordered.Count} 条消息" : "暂无未读通知";
+            StatusText.Text = msgs.Count > 0 ? $"共 {msgs.Count} 条消息" : "暂无未读通知";
         }
+
+        private static long OrderKey(ToastData m, long nowTicks)
+            => m.NotificationId == 0 ? nowTicks : m.NotificationId;
 
         private void MessageItem_PointerPressed(object? sender, PointerPressedEventArgs e)
         {
@@ -406,11 +535,10 @@ namespace Notifier
             }
             catch { }
 
-            await Task.Run(() =>
-            {
-                foreach (var m in ToastMessageStore.GetAll().ToList())
-                    ToastMessageStore.RemoveAndSync(m);
-            });
+            // 一次清空：只触发一次集合变更。
+            // 旧实现逐条 RemoveAndSync，N 条消息 = N 次列表重建 + N 次落盘调度。
+            // 系统通知中心上一步已经整体清空，这里不必再逐条删一次。
+            ToastMessageStore.Clear(removeFromNotificationCenter: false);
 
             RefreshMessages();
             try { ((App)global::Avalonia.Application.Current!).OnMessagesHaveBeenCleared(); } catch { }

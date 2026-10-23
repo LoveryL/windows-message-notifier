@@ -42,7 +42,7 @@ jobs:
       run: |
         gh release create ${{ github.ref_name }} `
           --title "Release ${{ github.ref_name }}" `
-          --notes "GitHub Action 自动发布`nCommit: ${{ github.sha }}`nTag: ${{ github.ref_name }}" `
+          --notes "GitHub Action 自动发布`nCommit: ${{ github.sha }}`nTag: ${{ github.ref_name }}`n本版本请使用winappcli搭配本仓库的Manifest启动" `
           --prerelease `
           "${{ github.workspace }}\release.zip"
       shell: pwsh

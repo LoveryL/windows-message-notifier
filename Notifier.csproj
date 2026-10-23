@@ -10,6 +10,23 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
+  <!--
+    运行时配置：本程序是常驻托盘工具，堆很小、线程越少越好。
+    - TieredPGO：分层编译 + 配置引导优化，让稳态热路径跑得更快
+    - ServerGarbageCollection=false / ConcurrentGarbageCollection=false：
+      小堆场景下省掉服务器 GC 的大内存预留与后台 GC 线程
+    - SatelliteResourceLanguages：只留简中卫星资源，减小体积
+    注意：请勿开启 InvariantGlobalization —— Avalonia 的文本整形与中文字体回退依赖 ICU。
+    注意：请勿开启 PublishTrimmed / NativeAOT —— WinRT 互操作与 Avalonia XAML 大量依赖反射。
+    发布如需更快冷启动，可在命令行追加 ReadyToRun（需配合 RuntimeIdentifier 使用）。
+  -->
+  <PropertyGroup>
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.2" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
@@ -18,12 +35,15 @@
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="System.Management" Version="10.0.10" />
   </ItemGroup>
+
+  <!-- 路径统一使用正斜杠：MSBuild 会自动转换，且能在非 Windows 上还原/构建 -->
   <ItemGroup>
-  <EmbeddedResource Include="Resources\icon_normal.ico" />
-  <EmbeddedResource Include="Resources\icon_alert.ico" />
-</ItemGroup>
+    <EmbeddedResource Include="Resources/icon_normal.ico" />
+    <EmbeddedResource Include="Resources/icon_alert.ico" />
+  </ItemGroup>
+
   <ItemGroup>
-    <Compile Remove="TestRunner\**\*.cs" />
+    <Compile Remove="TestRunner/**/*.cs" />
   </ItemGroup>
 
 </Project>

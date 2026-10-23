@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Text.Json.Serialization;
@@ -12,6 +13,65 @@ namespace Notifier
     // Event-driven replacement for polling-based notification retrieval.
     public class ToastNotificationListener
     {
+        // 过滤关键词改为从设置读取，并缓存成数组：
+        // 通知到达是高频路径，不该每条都 Split 一次字符串。设置变更时才重建缓存。
+        private static string[] _filters = Array.Empty<string>();
+        private static readonly object _filterLock = new();
+        private static bool _filterSubscribed;
+
+        private static void EnsureFilterSubscription()
+        {
+            if (_filterSubscribed) return;
+            _filterSubscribed = true;
+
+            try
+            {
+                App.setting.ValueChanged += key =>
+                {
+                    if (string.Equals(key, Settings_Manager.KFilterKeywords, StringComparison.Ordinal))
+                        RefreshFilters();
+                };
+            }
+            catch { }
+
+            RefreshFilters();
+        }
+
+        private static void RefreshFilters()
+        {
+            try
+            {
+                var raw = App.setting?.FilterKeywords ?? string.Empty;
+                var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                lock (_filterLock) _filters = parts;
+            }
+            catch
+            {
+                lock (_filterLock) _filters = Array.Empty<string>();
+            }
+        }
+
+        private static bool IsFiltered(string title, string body)
+        {
+            string[] filters;
+            lock (_filterLock) filters = _filters;
+
+            if (filters.Length == 0) return false;
+
+            for (int i = 0; i < filters.Length; i++)
+            {
+                var kw = filters[i];
+                if (kw.Length == 0) continue;
+
+                // OrdinalIgnoreCase：免分配，且不走文化敏感比较（后者对短字符串开销明显）
+                if (title.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
         private UserNotificationListener? _listener;
         private uint _lastNotificationId;
         private bool _initialized;
@@ -26,6 +86,7 @@ namespace Notifier
         {
             try
             {
+                EnsureFilterSubscription();
                 _listener = UserNotificationListener.Current;
                 var accessStatus = await _listener.RequestAccessAsync();
 
@@ -88,11 +149,22 @@ namespace Notifier
                 if (args.ChangeKind != UserNotificationChangedKind.Added)
                     return; // only care about new toasts
 
-                var notifications = await sender.GetNotificationsAsync(NotificationKinds.Toast);
-                if (notifications == null || notifications.Count == 0)
-                    return;
+                // 直接用事件自带的 Id 取单条通知：
+                // 旧实现会在这次回调里 GetNotificationsAsync 拉全量列表再 OrderByDescending 排序，
+                // 通知越多越慢，而且是跨进程 WinRT 调用。GetNotification(id) 是 O(1)。
+                uint id = args.UserNotificationId;
+                UserNotification? notif = null;
 
-                var notif = notifications.OrderByDescending(n => n.Id).FirstOrDefault();
+                if (id > 0)
+                {
+                    try { notif = sender.GetNotification(id); }
+                    catch { notif = null; }
+                }
+
+                // 兜底：个别系统上 GetNotification 可能取不到，退回全量拉取（线性找最大 Id，不再排序）
+                if (notif == null)
+                    notif = await TryGetLatestByScanAsync(sender);
+
                 if (notif == null)
                     return;
 
@@ -127,6 +199,29 @@ namespace Notifier
             }
         }
 
+        // 仅在 GetNotification 不可用时使用：单次线性扫描取 Id 最大的通知（O(n)，无排序、无中间集合）
+        private static async Task<UserNotification?> TryGetLatestByScanAsync(UserNotificationListener sender)
+        {
+            try
+            {
+                var notifications = await sender.GetNotificationsAsync(NotificationKinds.Toast);
+                if (notifications == null || notifications.Count == 0)
+                    return null;
+
+                UserNotification? latest = null;
+                foreach (var n in notifications)
+                {
+                    if (latest == null || n.Id > latest.Id)
+                        latest = n;
+                }
+                return latest;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private ToastData? ExtractToastData(UserNotification notification)
         {
             try
@@ -150,12 +245,10 @@ namespace Notifier
                 string title = textElements[0]?.Text ?? string.Empty;
                 string body = string.Join(" ", textElements.Skip(1).Select(t => t.Text));
 
-                // filter out WeChat noisy notifications as before
-                if (title.Contains("微信") || title.Contains("WeChat") ||
-                    body.Contains("微信") || body.Contains("WeChat"))
-                {
+                // 按设置的关键词过滤（默认仍是 微信 / WeChat）
+                EnsureFilterSubscription();
+                if (IsFiltered(title, body))
                     return null;
-                }
 
                 return new ToastData
                 {
@@ -180,21 +273,31 @@ namespace Notifier
         {
             try
             {
-                if (_listener != null)
-                {
-                    var notifications = await _listener.GetNotificationsAsync(NotificationKinds.Toast);
-                    if (notifications != null)
-                    {
-                        foreach (var notif in notifications)
-                        {
-                            try { _listener.RemoveNotification(notif.Id); } catch { }
-                        }
-                    }
-                }
+                if (_listener == null) return;
+
+                var notifications = await _listener.GetNotificationsAsync(NotificationKinds.Toast);
+                if (notifications == null || notifications.Count == 0) return;
+
+                var ids = new List<uint>(notifications.Count);
+                foreach (var notif in notifications)
+                    ids.Add(notif.Id);
+
+                // 每条 RemoveNotification 都是一次跨进程 WinRT 调用，
+                // 原来在 UI 线程上串行执行 N 次，通知多了会明显卡一下，挪到线程池。
+                await Task.Run(() => RemoveIds(ids));
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"ClearNotifications error: {ex.Message}");
+            }
+        }
+
+        private void RemoveIds(List<uint> ids)
+        {
+            foreach (var id in ids)
+            {
+                try { _listener?.RemoveNotification(id); }
+                catch (Exception ex) { Debug.WriteLine($"删除通知失败: {ex.Message}"); }
             }
         }
 

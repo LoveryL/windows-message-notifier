@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.Media.Control;
@@ -80,6 +80,9 @@ namespace Notifier
         public event Action<PlaybackState>? OnPlaybackStateChanged;
         public event Action<TrackDirection>? OnTrackChanged;
         public event Action<bool>? OnSessionChanged;
+
+        /// <summary>媒体属性（歌名/艺术家/专辑）变化。切歌后靠它刷新 UI，不必固定延时猜测。</summary>
+        public event Action? OnMediaPropertiesChanged;
 
         public SMTCController() { }
 
@@ -187,6 +190,11 @@ namespace Notifier
             }
         }
 
+        /// <summary>
+        /// 同步包装（历史 API，仅保留兼容）。
+        /// 内部用 GetAwaiter().GetResult() 阻塞调用线程，UI 线程上调用会卡界面甚至死锁，
+        /// 新代码请一律使用 TogglePlayPauseAsync。
+        /// </summary>
         public void TogglePlayPause()
         {
             TogglePlayPauseAsync().GetAwaiter().GetResult();
@@ -212,6 +220,7 @@ namespace Notifier
             OnPlaybackStateChanged?.Invoke(state);
         }
 
+        /// <summary>同步包装（历史 API，同上），新代码请用 SetPlaybackStateAsync。</summary>
         public void SetPlaybackState(PlaybackState state)
         {
             SetPlaybackStateAsync(state).GetAwaiter().GetResult();
@@ -233,6 +242,7 @@ namespace Notifier
             OnTrackChanged?.Invoke(direction);
         }
 
+        /// <summary>同步包装（历史 API，同上），新代码请用 SwitchTrackAsync。</summary>
         public void SwitchTrack(TrackDirection direction)
         {
             SwitchTrackAsync(direction).GetAwaiter().GetResult();
@@ -285,6 +295,7 @@ namespace Notifier
             }
         }
 
+        /// <summary>同步包装（历史 API，同上），新代码请用 GetCurrentMediaInfoAsync。</summary>
         public MediaInfo GetCurrentMediaInfo()
         {
             return GetCurrentMediaInfoAsync().GetAwaiter().GetResult();
@@ -346,20 +357,61 @@ namespace Notifier
             };
         }
 
+        /// <summary>
+        /// 异步版：不再用 GetAwaiter().GetResult() 同步阻塞调用线程。
+        /// </summary>
+        public async Task<MediaSummary> GetMediaSummaryAsync()
+        {
+            EnsureInitialized();
+            if (_currentSession == null) return new MediaSummary();
+
+            return new MediaSummary
+            {
+                PlaybackState = GetPlaybackStatus(),
+                MediaInfo = await GetCurrentMediaInfoAsync(),
+                ButtonStates = GetAllButtonStates()
+            };
+        }
+
+        /// <summary>
+        /// 订阅媒体状态变化。
+        /// 旧实现是一个 2 秒的轮询 Timer，每轮都同步阻塞调用 WinRT 接口（GetAwaiter().GetResult()），
+        /// 播放器没在放东西时也照样唤醒线程。改为直接复用 SMTC 自带的变更事件，只在真正变化时回调。
+        /// </summary>
         public IDisposable MonitorChanges(Action<MediaSummary> onStatusChanged)
         {
             EnsureInitialized();
-            
-            _monitorTimer = new System.Threading.Timer(state =>
+
+            _monitorCallback = onStatusChanged;
+            return new MonitorSubscription(this);
+        }
+
+        private Action<MediaSummary>? _monitorCallback;
+
+        private void NotifyMonitorChanged()
+        {
+            var callback = _monitorCallback;
+            if (callback == null) return;
+
+            _ = Task.Run(async () =>
             {
-                if (state is Action<MediaSummary> callback)
+                try
                 {
-                    var summary = GetMediaSummary();
-                    callback(summary);
+                    callback(await GetMediaSummaryAsync());
                 }
-            }, onStatusChanged, 0, 2000);
-            
-            return this;
+                catch
+                {
+                    // 忽略回调异常
+                }
+            });
+        }
+
+        private sealed class MonitorSubscription : IDisposable
+        {
+            private readonly SMTCController _owner;
+            public MonitorSubscription(SMTCController owner) => _owner = owner;
+
+            public void Dispose() => _owner._monitorCallback = null;
         }
 
         #endregion
@@ -407,6 +459,7 @@ namespace Notifier
             {
                 var status = sender.GetPlaybackInfo().PlaybackStatus;
                 OnPlaybackStateChanged?.Invoke(ConvertPlaybackStatus(status));
+                NotifyMonitorChanged();
             }
             catch
             {
@@ -416,7 +469,9 @@ namespace Notifier
 
         private void CurrentSession_MediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
         {
-            // 媒体属性变化时可以触发UI更新
+            // 媒体属性变化（切歌等）时立即通知订阅方
+            NotifyMonitorChanged();
+            OnMediaPropertiesChanged?.Invoke();
         }
 
         #endregion
@@ -452,6 +507,7 @@ namespace Notifier
 
         public void Dispose()
         {
+            _monitorCallback = null;
             _monitorTimer?.Dispose();
             _monitorTimer = null;
             
@@ -459,6 +515,7 @@ namespace Notifier
             {
                 _currentSession.PlaybackInfoChanged -= CurrentSession_PlaybackInfoChanged;
                 _currentSession.MediaPropertiesChanged -= CurrentSession_MediaPropertiesChanged;
+                OnMediaPropertiesChanged = null;
             }
             
             if (_sessionManager != null)

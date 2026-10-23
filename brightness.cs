@@ -11,19 +11,56 @@ internal static class BrightnessManager
 
     // 缓存最后一次设置的亮度值
     private static int _lastSimulatedPercent = 70;
+    private static int _lastAppliedPercent = -1;
     private static bool _hasGammaOverride;
+    private static readonly object _gammaLock = new();
+
+    // 硬件亮度读取缓存：一次 WMI 查询要几十毫秒，而亮度值变化很慢，
+    // 1 秒内复用上次结果；写入亮度后由 Invalidate() 主动失效。
+    private const int BrightnessCacheTtlMs = 1000;
+    private static readonly object _cacheLock = new();
+    private static int _cachedBrightness = -1;
+    private static long _cacheStampMs = long.MinValue;
 
     // ====== 硬件 WMI ======
     public static int Get()
     {
+        var now = Environment.TickCount64;
+        lock (_cacheLock)
+        {
+            if (_cachedBrightness >= 0 && now - _cacheStampMs < BrightnessCacheTtlMs)
+                return _cachedBrightness;
+        }
+
+        int value = -1;
         try
         {
             using var s = new ManagementObjectSearcher(@"root\WMI", "SELECT * FROM WmiMonitorBrightness");
             foreach (ManagementObject o in s.Get())
-                return Convert.ToInt32(o["CurrentBrightness"]);
+            {
+                value = Convert.ToInt32(o["CurrentBrightness"]);
+                break;
+            }
         }
         catch { }
-        return -1;
+
+        lock (_cacheLock)
+        {
+            _cachedBrightness = value;
+            _cacheStampMs = now;
+        }
+
+        return value;
+    }
+
+    /// <summary>亮度被外部/本程序改动后调用，让下一次 Get() 重新查询 WMI。</summary>
+    public static void Invalidate()
+    {
+        lock (_cacheLock)
+        {
+            _cachedBrightness = -1;
+            _cacheStampMs = long.MinValue;
+        }
     }
 
     public static bool TrySet(int percent)
@@ -57,6 +94,14 @@ internal static class BrightnessManager
         percent = Math.Clamp(percent, 5, 100);
         _lastSimulatedPercent = percent;
 
+        // 拖动滑块时会连续触发相同数值，重复设置 Gamma 只是白白让 GPU 重刷一次。
+        // 亮度设置可能来自去抖后的后台线程，这里串行化保护状态字段。
+        lock (_gammaLock)
+        {
+            if (_lastAppliedPercent == percent && _hasGammaOverride)
+                return;
+        }
+
         float level = percent / 100f;
         var ramp = CreateRamp();
 
@@ -86,7 +131,11 @@ internal static class BrightnessManager
                 return;
             }
 
-            _hasGammaOverride = true;
+            lock (_gammaLock)
+            {
+                _hasGammaOverride = true;
+                _lastAppliedPercent = percent;
+            }
         }
         catch (Exception ex)
         {
@@ -101,8 +150,11 @@ internal static class BrightnessManager
 
     public static void RestoreDefaultGamma()
     {
-        if (!_hasGammaOverride)
-            return;
+        lock (_gammaLock)
+        {
+            if (!_hasGammaOverride)
+                return;
+        }
 
         var baseRamp = CreateRamp();
         for (int i = 0; i < 256; i++)
@@ -120,7 +172,11 @@ internal static class BrightnessManager
                 return;
 
             SetDeviceGammaRamp(dc, ref baseRamp);
-            _hasGammaOverride = false;
+            lock (_gammaLock)
+            {
+                _hasGammaOverride = false;
+                _lastAppliedPercent = -1;
+            }
         }
         catch (Exception ex)
         {

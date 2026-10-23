@@ -15,9 +15,6 @@
 
     <Window.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Notifier/ThemeResources.axaml" />
-            </ResourceDictionary.MergedDictionaries>
             <local:PlayPauseTextToStateConverter x:Key="PlayPauseConverter" />
             <local:PlayPauseToVisibilityConverter x:Key="PlayPauseToVisibilityConverter" />
         </ResourceDictionary>
@@ -27,11 +24,11 @@
         <Grid.RenderTransform>
             <TranslateTransform X="-420" />
         </Grid.RenderTransform>
-        <Border CornerRadius="14"
+        <Border x:Name="OuterBorder"
+                CornerRadius="14"
                 Background="{DynamicResource LiquidGlassBackground}"
                 BorderBrush="{DynamicResource GlassBorderBrush}"
-                BorderThickness="1"
-                BoxShadow="0 0 24 0 #00000040">
+                BorderThickness="1">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
