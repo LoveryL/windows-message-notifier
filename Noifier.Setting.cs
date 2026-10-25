@@ -231,8 +231,10 @@ public sealed class Settings_Manager
     /// <summary>旧版兼容事件：按大类通知，用于窗口判断是否需要重新应用。</summary>
     public event Action<SettingType>? SettingChanged;
 
-    private static string LocalConfigPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notifier", "config.json");
+    // 打包态（MSIX）下程序目录是只读的 WindowsApps，配置必须写应用数据目录；
+    // 未打包时 AppEnvironment.DataFolder 就是原来的 %LOCALAPPDATA%\Notifier，行为不变。
+    private static string LocalConfigPath => Path.Combine(AppEnvironment.DataFolder, "config.json");
+    // 只用于读取旧版本留在程序目录里的配置（兼容用，不写入）
     private static string AppConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
     private static readonly JsonSerializerOptions SerializerOptions = new()

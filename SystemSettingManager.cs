@@ -11,8 +11,7 @@ public enum BrightnessCapability
 
 public sealed class SystemSettingsManager : IDisposable
 {
-    // 每次构造都要走一遍 NAudio 的 MMDeviceEnumerator（枚举音频端点 + COM 初始化），
-    // 旧实现每打开一次面板就 new 一个，改为进程内共享，只在应用退出时释放。
+    // 进程内共享：音频端点（COM）与亮度能力探测（WMI）都只需要做一次。
     private static readonly Lazy<SystemSettingsManager> _shared = new(() => new SystemSettingsManager());
     public static SystemSettingsManager Shared => _shared.Value;
 
@@ -22,14 +21,18 @@ public sealed class SystemSettingsManager : IDisposable
     private readonly IAudioController? _audio;
     private bool _disposed;
 
-    // 亮度能力探测要走一次 WMI，结果不会变，构造时探测一次即可
-    private readonly BrightnessCapability _brightnessCapability;
+    // 亮度能力探测要走一次 WMI（几十毫秒），结果不会变。
+    // 旧实现在构造函数里同步探测，等于把这段耗时钉死在启动/首次开窗的关键路径上；
+    // 现在改为后台预热 + 首次取值时兜底，构造函数立即返回。
+    private int _brightnessProbeStarted;
 
     public SystemSettingsManager()
     {
         try
         {
+            // 音频控制器自带 STA 线程，构造只是起线程 + 入队初始化命令，不阻塞调用方
             _audio = AudioNative.Create();
+            _audio.StateChanged += OnAudioStateChanged;
             Logger.Info("SystemSettingsManager 初始化完成，音频控制器已加载");
         }
         catch (Exception ex)
@@ -38,16 +41,45 @@ public sealed class SystemSettingsManager : IDisposable
             Logger.Error("SystemSettingsManager 初始化：音频控制器加载失败", ex);
         }
 
-        _brightnessCapability = BrightnessManager.Capability;
+        WarmUpBrightnessProbe();
+    }
+
+    /// <summary>后台预热 WMI 亮度能力（构造时调用一次，线程池上跑，不占 UI 时间）。</summary>
+    private void WarmUpBrightnessProbe()
+    {
+        if (System.Threading.Interlocked.Exchange(ref _brightnessProbeStarted, 1) != 0) return;
+
+        _ = System.Threading.Tasks.Task.Run(() =>
+        {
+            try { _ = BrightnessManager.Capability; }
+            catch { }
+        });
     }
 
     // ====== 音量 ======
+
+    /// <summary>音量/静音被系统或其它程序改变时触发（回调在音频 STA 线程，订阅方需自行切回 UI 线程）。</summary>
+    public event Action<float, bool>? VolumeChanged;
+
+    /// <summary>音频端点是否可用（不可用时不值得再调音量接口）。</summary>
+    public bool IsAudioAvailable => _audio?.IsAvailable ?? false;
+
+    /// <summary>音量 UI 可见时打开轮询，不可见时关闭：面板关着就一次 COM 调用都不做。</summary>
+    public void SetVolumeMonitoring(bool enabled)
+    {
+        try { _audio?.SetMonitoring(enabled); }
+        catch (Exception ex) { Logger.Warn($"切换音量轮询失败: {ex.Message}"); }
+    }
+
+    /// <summary>当前音量 0.0~1.0；端点未就绪返回 -1（UI 应保持原值而不是跳到 0）。</summary>
     public float GetSystemVolume()
     {
-        // 这里原本每次调用都写两条日志，属于高频路径，日志留在真正需要的地方（异常分支）
-        if (_audio == null) return 0f;
-        return _audio.GetVolume();
+        if (_audio == null) return -1f;
+        try { return _audio.GetVolume(); }
+        catch (Exception ex) { Logger.Warn($"读取系统音量失败: {ex.Message}"); return -1f; }
     }
+
+    public bool IsSystemMuted() => _audio?.IsMuted ?? false;
 
     /// <summary>level: 0.0 ~ 1.0</summary>
     public void SetSystemVolume(float level)
@@ -86,8 +118,16 @@ public sealed class SystemSettingsManager : IDisposable
         }
     }
 
+    private void OnAudioStateChanged(float volume, bool muted)
+    {
+        try { VolumeChanged?.Invoke(volume, muted); }
+        catch { }
+    }
+
     // ====== 亮度 ======
-    public BrightnessCapability BrightnessCapability => _brightnessCapability;
+
+    /// <summary>硬件亮度能力（首次访问才真正探测，之后走 Lazy 缓存）。</summary>
+    public BrightnessCapability BrightnessCapability => BrightnessManager.Capability;
 
     /// <summary>硬件亮度（-1 为不支持）</summary>
     public int GetScreenBrightness() => BrightnessManager.Get();
@@ -123,8 +163,12 @@ public sealed class SystemSettingsManager : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
         try
         {
+            if (_audio != null)
+                _audio.StateChanged -= OnAudioStateChanged;
+
             _audio?.Dispose();
             BrightnessManager.RestoreDefaultGamma();
             Logger.Info("SystemSettingsManager 已释放资源");

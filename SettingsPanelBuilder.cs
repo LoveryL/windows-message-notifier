@@ -98,33 +98,45 @@ internal static class SettingsPanelBuilder
         foreach (var group in Settings_Manager.GroupOrder)
         {
             var body = new StackPanel { Spacing = 6, Margin = new Thickness(0, 4, 0, 4) };
-
-            foreach (var item in Settings_Manager.Items)
-            {
-                if (!string.Equals(item.Group, group, StringComparison.Ordinal)) continue;
-
-                var row = BuildRow(item, s);
-                if (row != null) body.Children.Add(row);
-            }
-
             var groupKey = group;
-            var resetGroup = new Button
+            var bodyBuilt = false;
+
+            // 分组内容懒构建：设置项有几十个，但绝大多数分组默认折叠。
+            // 旧实现开窗时就把所有行全部创建出来（几十个 Slider/TextBox/取色按钮 + 上百个刷子），
+            // 这些控件一次都没显示过就先付了一遍创建与布局成本。
+            // 改成展开时才构建，首次开窗只创建"分组标题 + 空容器"。
+            void EnsureBody()
             {
-                Content = $"恢复「{Settings_Manager.GroupLabel(group)}」默认",
-                FontSize = 10,
-                Padding = new Thickness(8, 3),
-                Margin = new Thickness(0, 6, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Background = null,
-                BorderThickness = new Thickness(1),
-                BorderBrush = Brushes.Gray
-            };
-            resetGroup.Click += (_, _) =>
-            {
-                s.ResetGroup(groupKey);
-                rebuild();
-            };
-            body.Children.Add(resetGroup);
+                if (bodyBuilt) return;
+                bodyBuilt = true;
+                body.Children.Clear();
+
+                foreach (var item in Settings_Manager.Items)
+                {
+                    if (!string.Equals(item.Group, groupKey, StringComparison.Ordinal)) continue;
+
+                    var row = BuildRow(item, s);
+                    if (row != null) body.Children.Add(row);
+                }
+
+                var resetGroup = new Button
+                {
+                    Content = $"恢复「{Settings_Manager.GroupLabel(groupKey)}」默认",
+                    FontSize = 10,
+                    Padding = new Thickness(8, 3),
+                    Margin = new Thickness(0, 6, 0, 0),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Background = null,
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = Brushes.Gray
+                };
+                resetGroup.Click += (_, _) =>
+                {
+                    s.ResetGroup(groupKey);
+                    rebuild();
+                };
+                body.Children.Add(resetGroup);
+            }
 
             var expander = new Expander
             {
@@ -132,10 +144,15 @@ internal static class SettingsPanelBuilder
                 Content = body,
                 IsExpanded = ExpandedState.TryGetValue(group, out var ex) && ex
             };
+
+            if (expander.IsExpanded) EnsureBody();
+
             expander.PropertyChanged += (_, e) =>
             {
-                if (e.Property == Expander.IsExpandedProperty)
-                    ExpandedState[group] = expander.IsExpanded;
+                if (e.Property != Expander.IsExpandedProperty) return;
+
+                ExpandedState[group] = expander.IsExpanded;
+                if (expander.IsExpanded) EnsureBody();
             };
 
             host.Children.Add(expander);

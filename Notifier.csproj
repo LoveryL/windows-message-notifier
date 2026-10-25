@@ -22,10 +22,69 @@
   -->
   <PropertyGroup>
     <TieredPGO>true</TieredPGO>
+    <!-- 分层编译 + 快速启动 JIT：冷启动阶段先用低优化代码跑起来，热路径稍后再升级 -->
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickStartupJit>true</TieredCompilationQuickStartupJit>
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+    <!-- 明确关闭：Avalonia 的文本整形与中文字体回退依赖 ICU，开启会导致中文排版异常 -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
+
+  <!--
+    发布态打开 ReadyToRun（把 IL 预编译成本机码，省掉运行时的 JIT 时间，冷启动明显更快）。
+    需要带 RuntimeIdentifier 发布才会生效：dotnet publish -c Release -r win-x64
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' AND '$(Configuration)' == 'Release'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+  </PropertyGroup>
+
+  <!--
+    ===== MSIX 打包开关 =====
+
+    默认 **None（未打包）**：`dotnet run` / `dotnet build` 直接产出 exe，行为与以前完全一致。
+
+    要打包时显式传入 `-p:WindowsPackageType=MSIX`。之所以做成开关而不是写死：
+    - 打包态需要引用 Microsoft.WindowsAppSDK（运行时依赖 Windows App Runtime），
+      平时不打包就不该背上这个依赖；
+    - winapp CLI 是**按 WindowsPackageType 的有效值**判定打包/未打包的，
+      传这个属性它才会走"注册松散布局 + 带包身份启动"的路径，
+      否则就会报：
+      "manifest 选项不适用于未打包应用 ... (WindowsPackageType=None)"
+
+    用法：
+      winapp run  .\Notifier.csproj -r win-x64 -p:WindowsPackageType=MSIX
+      winapp pack .\Notifier.csproj -c Release -p:WindowsPackageType=MSIX
+
+    也可以用官方推荐的一步到位（自动写入正确版本的包引用 + 生成清单/资产）：
+      winapp init（加 - -use-defaults 可跳过交互）
+  -->
+  <PropertyGroup>
+    <WindowsPackageType Condition="'$(WindowsPackageType)' == ''">None</WindowsPackageType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <!-- 单项目 MSIX：由 csproj 直接产出 MSIX，不再需要单独的 wapproj -->
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <!-- 不在每次 build 时都生成包（打包交给 winapp pack / dotnet publish） -->
+    <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <!-- Windows App SDK：单项目 MSIX 的构建目标（EnableMsixTooling）来自这个包 -->
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
+    <!-- 让 dotnet run 也能带包身份启动（内部转发给 winapp run） -->
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.WinApp" Version="0.6.*" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- 清单与资产：单项目 MSIX 约定用 Package.appxmanifest + Assets/ -->
+  <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <None Include="Package.appxmanifest" />
+    <None Include="Assets\**\*.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.2" />

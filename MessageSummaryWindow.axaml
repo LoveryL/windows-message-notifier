@@ -36,7 +36,11 @@
                     </StackPanel>
                 </Border>
 
-                <ScrollViewer Grid.Row="1" Margin="10,6,10,6" VerticalScrollBarVisibility="Auto">
+                <!-- 横向滚动必须禁用：卡片右滑露出动作区时会往右溢出容器，
+                     若允许横向滚动会被撑出一条横向滚动条。 -->
+                <ScrollViewer Grid.Row="1" Margin="10,6,10,6"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="MessageList" IsHitTestVisible="True">
                         <!-- 启用 UI 虚拟化：原来用默认 StackPanel，进入面板时所有分组
                              （最多数百个，每个还带一个嵌套 ItemsControl）会被一次性实例化并布局，
@@ -48,10 +52,48 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="local:ToastMessageGroup">
-                                <Border CornerRadius="{DynamicResource CardCornerRadius}"
+                                <!-- 外层容器：动作层在下、内容卡片在上。
+                                     卡片向右平移时，下面的动作层按位移宽度逐渐露出（iOS 风格）。
+                                     注意：动作层用 Grid 而不是 Border —— 指针事件会冒泡，
+                                     如果它是 Border，会被 MessageItem_PointerPressed 误判成卡片本体。 -->
+                                <Grid Margin="0,5">
+                                    <Grid Name="ActionLayer"
+                                          IsVisible="False"
+                                          Width="0"
+                                          HorizontalAlignment="Left"
+                                          ClipToBounds="True">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Name="ActionDeleteButton"
+                                                    Click="ActionDelete_Click"
+                                                    Width="56"
+                                                    VerticalAlignment="Stretch"
+                                                    Background="#E5484D"
+                                                    BorderThickness="0"
+                                                    CornerRadius="10,0,0,10"
+                                                    Padding="0">
+                                                <Path Width="18" Height="18" Stretch="Uniform"
+                                                      Stroke="White" StrokeThickness="1.6"
+                                                      Data="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M9 11v6M15 11v6" />
+                                            </Button>
+                                            <Button Name="ActionActivateButton"
+                                                    Click="ActionActivate_Click"
+                                                    Width="56"
+                                                    VerticalAlignment="Stretch"
+                                                    Background="{DynamicResource AccentBrush}"
+                                                    BorderThickness="0"
+                                                    CornerRadius="0"
+                                                    Padding="0">
+                                                <Path Width="18" Height="18" Stretch="Uniform"
+                                                      Stroke="White" StrokeThickness="1.6"
+                                                      Data="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+
+                                <Border Name="MessageCard"
+                                        CornerRadius="{DynamicResource CardCornerRadius}"
                                         Background="{DynamicResource CardBackground}"
                                         Padding="12,10"
-                                        Margin="0,5"
                                         IsHitTestVisible="True"
                                         Cursor="Hand"
                                         PointerPressed="MessageItem_PointerPressed"
@@ -133,6 +175,7 @@
                                                    IsVisible="{Binding SourceApp, Converter={StaticResource NullToVisibilityConverter}}" />
                                     </Grid>
                                 </Border>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Text;
@@ -25,6 +26,9 @@ namespace Notifier
 
         private static Settings_Manager sets = new Settings_Manager();
         public static Settings_Manager setting => sets;
+
+        /// <summary>应用正在退出。面板窗口平时只隐藏，只有退出时才真正关闭。</summary>
+        public static bool IsExiting { get; private set; }
         private bool _isReadyForTrayClick = false;
         private ToastNotificationListener? _listener;
         private Forms.NotifyIcon? _notifyIcon;
@@ -37,7 +41,11 @@ namespace Notifier
         private bool _settingFocus;
         private CancellationTokenSource? _dismissCts;
 
-        private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+        // 注意：逐字字符串（@""）里的 \\ 是"两个反斜杠"，不是转义。
+        // 原来写成 @"Software\\Microsoft\\..." 实际会去查一个带双反斜杠的错误路径，
+        // 注册表操作静默失败（OpenSubKey 返回 null，被 catch 吞掉），
+        // 表现为"开机自启开关点了没反应"。
+        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string AppName = "Notifier";
 
         // Loaded configuration (from registry)
@@ -69,16 +77,209 @@ namespace Notifier
                 catch (Exception ex) { Logger.Error("预热系统设置管理器失败", ex); }
             });
             _ = InitializeListenerAsync();
+            // 渲染后端自检：平台图形上下文是初始化后才建好的，稍等一下再探测。
+            // 延到 3 秒后 —— 这只是往日志里写一行诊断信息，不该和启动抢 CPU
+            // （原来 800ms 时正好和窗口创建、监听启动叠在一起）。
             _ = Task.Run(async () =>
             {
-                await Task.Delay(1000);
+                try
+                {
+                    await Task.Delay(3000);
+                    LogRenderBackend();
+                }
+                catch { }
+            });
+            // 就绪等待从 1000ms 缩到 300ms：初始化（设置/主题/托盘/监听）都在上面同步或并行完成，
+            // 多等 700ms 只是让用户"点了没反应"，白白拖慢首次打开面板的体感。
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);
                 _isReadyForTrayClick = true;
             });
         }
 
+        /// <summary>
+        /// 探测实际生效的渲染后端（GPU / 软件），结果写进 app.log。
+        ///
+        /// 判定依据：Avalonia 只有在 ANGLE(EGL)/OpenGL 初始化成功时才会向服务定位器注册
+        /// 平台图形接口；软件光栅化（Software 模式）下它是不存在的。
+        ///
+        /// 全程走反射的原因：Avalonia 11 起 AvaloniaLocator 与 IPlatformGraphics 都被标记为
+        /// [PrivateApi] —— 运行时存在、但编译期引用程序集里看不到，直接写
+        /// `AvaloniaLocator.Current` 会报 CS0117。反射按类型名查找可以绕过这个限制，
+        /// 同时顺带兼容不同版本间接口改名（IPlatformGraphics / IPlatformOpenGlInterface）。
+        /// 全部包在 try 里，探测失败只影响日志，不影响运行。
+        /// </summary>
+        private static void LogRenderBackend()
+        {
+            try
+            {
+                if (TryResolvePlatformGraphics(out var ifaceName, out var implName))
+                {
+                    Logger.Info($"渲染后端：GPU 加速已启用（{ifaceName} → {implName}）");
+                    return;
+                }
+
+                // 定位器里查不到时，再看进程里有没有 ANGLE 的原生库（libEGL / libGLESv2）。
+                // ANGLE 初始化成功一定会把它们加载进来，可作为第二重证据。
+                if (TryFindAngleModule(out var moduleName))
+                {
+                    Logger.Info($"渲染后端：GPU 加速已启用（已加载 ANGLE 原生库 {moduleName}）");
+                    return;
+                }
+
+                Logger.Warn("渲染后端：软件光栅化（未找到平台图形接口，已回退 CPU 渲染）。"
+                          + "常见原因：显卡驱动过旧 / 远程桌面 / 显卡被 Avalonia 黑名单命中（如 Microsoft Basic Render）。");
+            }
+            catch (Exception ex)
+            {
+                Logger.Info($"渲染后端探测失败（不影响运行）：{ex.Message}");
+            }
+        }
+
+        /// <summary>在服务定位器里找平台图形接口；找到说明 GPU 后端初始化成功。</summary>
+        private static bool TryResolvePlatformGraphics(out string ifaceName, out string implName)
+        {
+            ifaceName = implName = string.Empty;
+
+            var locatorType = FindType("Avalonia.AvaloniaLocator",
+                "Avalonia.Base", "Avalonia.Controls", "Avalonia");
+            if (locatorType == null) return false;
+
+            // Current 在 11.x 是非公开的静态属性
+            var currentProp = locatorType.GetProperty("Current",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            var locator = currentProp?.GetValue(null);
+            if (locator == null) return false;
+
+            var getService = locator.GetType().GetMethod("GetService", new[] { typeof(Type) })
+                             ?? locator.GetType().GetMethods().FirstOrDefault(
+                                 m => m.Name == "GetService" && m.GetParameters().Length == 1);
+            if (getService == null) return false;
+
+            foreach (var candidate in new[] { "IPlatformGraphics", "IPlatformOpenGlInterface" })
+            {
+                var iface = FindTypeByName(candidate);
+                if (iface == null) continue;
+
+                var service = getService.Invoke(locator, new object[] { iface });
+                if (service == null) continue;
+
+                ifaceName = iface.Name;
+                implName = service.GetType().Name;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>在已加载的 Avalonia 程序集里按全名找类型（找不到再按名字扫描）。</summary>
+        private static Type? FindType(string fullName, params string[] assemblyNames)
+        {
+            foreach (var name in assemblyNames)
+            {
+                var asm = TryLoad(name);
+                var type = asm?.GetType(fullName);
+                if (type != null) return type;
+            }
+
+            var shortName = fullName.Substring(fullName.LastIndexOf('.') + 1);
+            return FindTypeByName(shortName);
+        }
+
+        /// <summary>
+        /// 按类型名查找，**只在 Avalonia 自己的程序集里找**。
+        ///
+        /// 原来这里会遍历 AppDomain 里所有程序集并对每个调用 GetTypes()，
+        /// 包括 System.Private.CoreLib（数千个类型）—— 一次自检要花上百毫秒 CPU，
+        /// 而它唯一的作用只是往日志里写一行。限定到 Avalonia.* 后开销可以忽略。
+        /// </summary>
+        private static Type? FindTypeByName(string typeName)
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                string? asmName;
+                try { asmName = asm.GetName().Name; }
+                catch { continue; }
+
+                if (asmName == null ||
+                    !(asmName == "Avalonia" || asmName.StartsWith("Avalonia.", StringComparison.Ordinal)))
+                    continue;
+
+                Type? type;
+                try { type = asm.GetType(typeName, false, false); }
+                catch { continue; }
+
+                if (type != null) return type;
+
+                // 命名空间可能随版本变，兜底在这一个程序集内扫一遍
+                try
+                {
+                    foreach (var t in asm.GetTypes())
+                    {
+                        if (t.Name == typeName) return t;
+                    }
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        private static Assembly? TryLoad(string name)
+        {
+            try
+            {
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (string.Equals(asm.GetName().Name, name, StringComparison.OrdinalIgnoreCase))
+                        return asm;
+                }
+
+                return Assembly.Load(name);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>进程里是否已加载 ANGLE 的原生库（GPU 渲染的旁证）。</summary>
+        private static bool TryFindAngleModule(out string moduleName)
+        {
+            moduleName = string.Empty;
+
+            try
+            {
+                foreach (System.Diagnostics.ProcessModule module in
+                         System.Diagnostics.Process.GetCurrentProcess().Modules)
+                {
+                    string fileName;
+                    try { fileName = module.ModuleName ?? string.Empty; }
+                    catch { continue; }
+
+                    if (fileName.StartsWith("libEGL", StringComparison.OrdinalIgnoreCase) ||
+                        fileName.StartsWith("libGLESv2", StringComparison.OrdinalIgnoreCase))
+                    {
+                        moduleName = fileName;
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // 枚举模块在某些环境（沙箱/受限进程）会抛，忽略即可
+            }
+
+            return false;
+        }
+
         private void OnAppExit()
         {
+            IsExiting = true;
             Logger.Info($"应用退出 (ListenerActive={_listener != null})");
+            try { if (_settingWindow != null) { _settingWindow._allowRealClose = true; _settingWindow.Close(); } } catch { }
+            try { if (_summaryWindow != null) { _summaryWindow._allowRealClose = true; _summaryWindow.Close(); } } catch { }
             try { if (_listener != null) { _listener.OnToastDetected -= OnToastDetected; _listener.StopListening(); ToastMessageStore.Listener = null; _listener = null; } } catch (Exception ex) { Logger.Error("停止监听时异常", ex); }
             try { ToastMessageStore.PersistNow(); } catch (Exception ex) { Logger.Error("保存通知缓存时异常", ex); }
             try { sets.SaveNow(); } catch (Exception ex) { Logger.Error("保存设置时异常", ex); }
@@ -184,13 +385,19 @@ namespace Notifier
 
         public void ShowPanelsFromApp()
         {
-            if (_summaryWindow == null || _settingWindow == null)
+            // 面板实例复用：只创建一次，之后每次点托盘都是 Show 而不是 new。
+            // 旧实现每次都要重新解析两份 XAML、重建控件树、重新初始化 SMTC，
+            // 几百毫秒全花在"打开"这个动作上；现在只是唤醒已有实例。
+            if (_summaryWindow == null || _settingWindow == null ||
+                _summaryWindow.IsReallyClosed || _settingWindow.IsReallyClosed)
             {
                 _summaryFocus = true;
                 _settingFocus = true;
 
-                _settingWindow = new SettingWindow();
-                _summaryWindow = new MessageSummaryWindow();
+                if (_settingWindow == null || _settingWindow.IsReallyClosed)
+                    _settingWindow = new SettingWindow();
+                if (_summaryWindow == null || _summaryWindow.IsReallyClosed)
+                    _summaryWindow = new MessageSummaryWindow();
 
                 _summaryWindow.ReportFocusState += f =>
                 {
@@ -214,6 +421,10 @@ namespace Notifier
                 _summaryWindow.Show();
             if (!_settingWindow.IsVisible)
                 _settingWindow.Show();
+
+            // 重新挂上变更订阅、打开音量轮询；收起期间攒下的变更在这里补一次刷新
+            _summaryWindow.OnAppShown();
+            _settingWindow.OnAppShown();
 
             Dispatcher.UIThread.Post(() =>
             {
@@ -264,6 +475,11 @@ namespace Notifier
             var exit = new Forms.ToolStripMenuItem("退出");
             exit.Click += (_, __) =>
             {
+                // 面板平时只隐藏，退出时必须显式放行，否则 Closing 被拦住窗口关不掉
+                IsExiting = true;
+                try { if (_settingWindow != null) _settingWindow._allowRealClose = true; } catch { }
+                try { if (_summaryWindow != null) _summaryWindow._allowRealClose = true; } catch { }
+
                 if (global::Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
                     desktop.Shutdown();
             };
@@ -292,6 +508,8 @@ namespace Notifier
                 {
                     if (_summaryWindow != null && _settingWindow != null && _summaryWindow.IsVisible)
                     {
+                        _summaryWindow.OnAppShown();
+                        _settingWindow.OnAppShown();
                         _summaryWindow.RefreshMessages();
                         // Activate setting first then summary so MessageSummaryWindow
                         // ends up with focus by default when panels are shown.
@@ -356,13 +574,12 @@ namespace Notifier
             _settingFocus = false;
             CancelPendingDismiss();
 
-            if (_summaryWindow != null && !_summaryWindow.IsVisible)
-                _summaryWindow = null;
-            if (_settingWindow != null && !_settingWindow.IsVisible)
-                _settingWindow = null;
+            // 窗口只是被隐藏：这里不再把引用置 null，
+            // 否则下次打开又要 new 两个窗口（解析 XAML + 建控件树 + 初始化 SMTC）。
+            _summaryWindow?.OnAppHidden();
+            _settingWindow?.OnAppHidden();
 
-            if (_summaryWindow == null && _settingWindow == null)
-                ToastMessageStore.SetSummaryWindowVisible(false);
+            ToastMessageStore.SetSummaryWindowVisible(false);
         }
 
         private async Task InitializeListenerAsync()
@@ -395,7 +612,10 @@ namespace Notifier
             // 汇总面板通过 App.OnNewToastDetected 自行合并刷新，这里不再额外触发一次全量重建
             OnNewToastDetected?.Invoke(toast);
 
-            Logger.Info($"检测到新通知 Title=\"{toast.Title}\" App=\"{toast.AppName}\" Aumid=\"{toast.Aumid}\"");
+            // 日志是明文文件，这里**不记标题/正文**：
+            // 通知内容常含验证码、私信片段等敏感信息，写进 app.log 等于留了一份明文副本，
+            // 任何能读日志的程序都能看到。保留来源应用名，诊断价值基本不损失。
+            Logger.Info($"检测到新通知 App=\"{toast.AppName}\" Aumid=\"{toast.Aumid}\"");
 
             AddMessage(toast.Title, toast.Body, toast.ProcessName);
         }
@@ -450,38 +670,13 @@ namespace Notifier
             catch { }
         }
 
-        private static int _packaged = -1; // -1 未探测 / 0 未打包 / 1 已打包
-
-        private static bool IsPackaged()
-        {
-            // 结果不会变化，缓存起来，避免每次判断都做两次 kernel32 调用
-            var cached = Volatile.Read(ref _packaged);
-            if (cached >= 0) return cached == 1;
-
-            var result = 0;
-            try
-            {
-                var length = 0u;
-                GetCurrentPackageFullName(ref length, null);
-                var sb = new StringBuilder((int)length);
-                result = GetCurrentPackageFullName(ref length, sb) == 0 ? 1 : 0;
-            }
-            catch { result = 0; }
-
-            Volatile.Write(ref _packaged, result);
-            return result == 1;
-        }
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, StringBuilder? packageFullName);
-
         private const string StartupTaskId = "NotifierAutoStart";
 
         private bool IsAutoStartEnabled()
         {
             try
             {
-                if (IsPackaged())
+                if (AppEnvironment.IsPackaged)
                 {
                     var task = StartupTaskGetSync();
                     return task == StartupTaskState.Enabled;
@@ -499,7 +694,7 @@ namespace Notifier
         {
             try
             {
-                if (IsPackaged())
+                if (AppEnvironment.IsPackaged)
                 {
                     _ = TogglePackagedAutoStart();
                 }

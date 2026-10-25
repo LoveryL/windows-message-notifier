@@ -21,35 +21,64 @@ namespace Notifier
         private bool _updatingMediaUi = false; // 合并并发的媒体信息刷新
 
         /// <summary>
-        /// 初始化 SMTC（在窗口加载后调用）
+        /// 初始化 SMTC（在窗口加载后调用）。
+        ///
+        /// 旧实现只初始化一次：失败后 _smtcInitialized 永远是 false，
+        /// 而"SMTC 检测不到"往往只是**初始化的那一刻**系统还没准备好
+        /// （刚开机、音频服务还没起来、播放器还没启动），之后就再也不试了。
+        /// 这里改成失败后按 1s → 3s → 6s 退避重试，最多 3 次。
         /// </summary>
         private async void InitializeSMTC()
         {
             if (_smtcInitialized) return;
 
-            try
+            for (int attempt = 1; attempt <= 3; attempt++)
             {
-                _smtcController = new SMTCController();
-                await _smtcController.InitializeAsync();  // 异步初始化，避免 UI 线程死锁
+                try
+                {
+                    if (_smtcController == null)
+                        _smtcController = new SMTCController();
 
-                // 订阅 SMTC 事件
-                _smtcController.OnPlaybackStateChanged += OnSmtcPlaybackStateChanged;
-                _smtcController.OnSessionChanged += OnSmtcSessionChanged;
-                _smtcController.OnMediaPropertiesChanged += OnSmtcMediaPropertiesChanged;
+                    await _smtcController.InitializeAsync();  // 异步初始化，避免 UI 线程死锁
 
-                // 尝试获取当前媒体信息并更新 UI
-                TryUpdateMediaUI();
+                    // 订阅 SMTC 事件（-= 先兜一遍：重试路径下可能已订阅）
+                    _smtcController.OnPlaybackStateChanged -= OnSmtcPlaybackStateChanged;
+                    _smtcController.OnSessionChanged -= OnSmtcSessionChanged;
+                    _smtcController.OnMediaPropertiesChanged -= OnSmtcMediaPropertiesChanged;
 
-                _smtcInitialized = true;
-                
-                Debug.WriteLine("SMTC 接入成功");
+                    _smtcController.OnPlaybackStateChanged += OnSmtcPlaybackStateChanged;
+                    _smtcController.OnSessionChanged += OnSmtcSessionChanged;
+                    _smtcController.OnMediaPropertiesChanged += OnSmtcMediaPropertiesChanged;
+
+                    // 尝试获取当前媒体信息并更新 UI
+                    TryUpdateMediaUI();
+
+                    _smtcInitialized = true;
+                    Debug.WriteLine("SMTC 接入成功");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, $"SMTC 初始化失败: {ex.Message}");
+                    Debug.WriteLine($"SMTC 初始化失败（第 {attempt}/3 次）: {ex.Message}");
+
+                    if (attempt < 3)
+                        await Task.Delay(attempt == 1 ? 1000 : 3000);
+                }
             }
-            catch (Exception ex)
-            {
-                global::Avalonia.Controls.ToolTip.SetTip(BtnPlayPause, $"SMTC 初始化失败: {ex.Message}");
-                Debug.WriteLine($"SMTC 初始化失败: {ex.Message}");
-                // 静默失败，不影响主功能
-            }
+
+            // 三次都失败：不影响主功能，仅提示
+            Logger.Warn("SMTC 初始化最终失败，媒体控制不可用（不影响通知功能）");
+        }
+
+        /// <summary>
+        /// 面板重新显示时调用：收起期间媒体信息可能已经变了（切歌、换播放器），
+        /// 而那时刷新是被跳过的，这里强制补一次。
+        /// </summary>
+        public void RefreshMediaNow()
+        {
+            _lastTitle = string.Empty; // 清掉去重标记，确保本次一定写进 UI
+            TryUpdateMediaUI();
         }
 
         /// <summary>
@@ -57,6 +86,10 @@ namespace Notifier
         /// </summary>
         private async void TryUpdateMediaUI()
         {
+            // 面板收起时这台机器还在跑：收到 SMTC 事件也直接丢弃，
+            // 不可见的 UI 刷新只是白烧 CPU（切歌频繁时尤其明显）。
+            if (!_visible) return;
+
             if (_smtcController == null || !_smtcController.HasActiveSession())
             {
                 // 没有活跃会话，保持默认文本
@@ -74,6 +107,16 @@ namespace Notifier
                 // 直接 await WinRT 异步接口，不再 Task.Run(() => 同步阻塞)：
                 // 后者会白占一个线程池线程，且在 STA 上下文下有死锁风险。
                 MediaInfo mediaInfo = await _smtcController.GetCurrentMediaInfoAsync();
+
+                // 播放器刚起来时 TryGetMediaPropertiesAsync 常常先返回空标题，
+                // 旧实现拿到空就直接把 UI 置成"未在播放"，于是看起来像"检测不到"。
+                // 这里空标题时短暂等待后重试一次。
+                if (string.IsNullOrEmpty(mediaInfo.Title))
+                {
+                    await Task.Delay(400);
+                    mediaInfo = await _smtcController.GetCurrentMediaInfoAsync();
+                }
+
                 PlaybackState playbackState = _smtcController.GetPlaybackStatus();
 
                 await Dispatcher.UIThread.InvokeAsync(() =>

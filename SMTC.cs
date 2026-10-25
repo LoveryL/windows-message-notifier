@@ -77,6 +77,14 @@ namespace Notifier
         private bool _initialized = false;
         private System.Threading.Timer? _monitorTimer;
 
+        // 会话看门狗。
+        // SessionsChanged 事件在部分机器/部分播放器上并不总是触发（尤其是"面板已经打开、
+        // 播放器是之后才启动"这种情况），于是 GetCurrentSession() 一直返回 null，
+        // 表现就是"SMTC 检测不到"。这里在**没有会话**时低频主动探测一次，
+        // 一旦拿到会话就立刻停掉（有媒体在放时开销为 0）。
+        private System.Threading.Timer? _sessionWatchdog;
+        private const int SessionWatchdogIntervalMs = 2000;
+
         public event Action<PlaybackState>? OnPlaybackStateChanged;
         public event Action<TrackDirection>? OnTrackChanged;
         public event Action<bool>? OnSessionChanged;
@@ -93,28 +101,97 @@ namespace Notifier
         {
             if (_initialized) return;
 
-            try
+            // RequestAsync 偶尔会在系统刚启动/资源紧张时返回 null 或直接抛异常，
+            // 而旧实现只试一次，失败后 _smtcInitialized 永远为 false，SMTC 就"检测不到"了。
+            // 这里做几次退避重试，成本很低（失败路径本身是毫秒级）。
+            Exception? lastError = null;
+
+            for (int attempt = 1; attempt <= 3; attempt++)
             {
-                _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-                
-                if (_sessionManager == null)
+                try
                 {
-                    throw new InvalidOperationException("Failed to get session manager");
+                    _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+
+                    if (_sessionManager == null)
+                    {
+                        lastError = new InvalidOperationException("Failed to get session manager");
+                    }
+                    else
+                    {
+                        // 获取当前会话
+                        UpdateCurrentSession();
+
+                        // 监听会话变化
+                        _sessionManager.SessionsChanged += SessionManager_SessionsChanged;
+
+                        _initialized = true;
+                        StartSessionWatchdogIfNeeded();
+                        Debug.WriteLine("SMTC initialized successfully!");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
                 }
 
-                // 获取当前会话
-                UpdateCurrentSession();
-
-                // 监听会话变化
-                _sessionManager.SessionsChanged += SessionManager_SessionsChanged;
-
-                _initialized = true;
-                Debug.WriteLine("SMTC initialized successfully!");
+                if (attempt < 3)
+                {
+                    Debug.WriteLine($"SMTC 初始化第 {attempt} 次失败，准备重试: {lastError?.Message}");
+                    await Task.Delay(400 * attempt);
+                }
             }
-            catch (Exception ex)
+
+            throw new InvalidOperationException($"Failed to initialize SMTC: {lastError?.Message}", lastError);
+        }
+
+        /// <summary>
+        /// 没有会话时开启低频探测；已有会话则关闭。
+        /// 这样"播放器还没启动"的情况下也能在它启动后几秒内被发现。
+        /// </summary>
+        private void StartSessionWatchdogIfNeeded()
+        {
+            try
             {
-                throw new InvalidOperationException($"Failed to initialize SMTC: {ex.Message}", ex);
+                if (_currentSession != null)
+                {
+                    StopSessionWatchdog();
+                    return;
+                }
+
+                if (_sessionWatchdog != null) return;
+
+                _sessionWatchdog = new System.Threading.Timer(_ =>
+                {
+                    try
+                    {
+                        if (_currentSession != null)
+                        {
+                            StopSessionWatchdog();
+                            return;
+                        }
+
+                        UpdateCurrentSession();
+
+                        if (_currentSession != null) StopSessionWatchdog();
+                    }
+                    catch
+                    {
+                        // 探测失败保持下一轮再试
+                    }
+                }, null, SessionWatchdogIntervalMs, SessionWatchdogIntervalMs);
             }
+            catch { }
+        }
+
+        private void StopSessionWatchdog()
+        {
+            try
+            {
+                _sessionWatchdog?.Dispose();
+                _sessionWatchdog = null;
+            }
+            catch { }
         }
 
         /// <summary>
@@ -439,11 +516,14 @@ namespace Notifier
                     _currentSession.MediaPropertiesChanged += CurrentSession_MediaPropertiesChanged;
                     OnSessionChanged?.Invoke(true);
                     Debug.WriteLine("Media session detected!");
+                    StopSessionWatchdog();
                 }
                 else
                 {
                     OnSessionChanged?.Invoke(false);
                     Debug.WriteLine("No media session available");
+                    // 会话没了（播放器退出）：重新开探测，等下一个播放器启动
+                    StartSessionWatchdogIfNeeded();
                 }
             }
         }
@@ -510,6 +590,7 @@ namespace Notifier
             _monitorCallback = null;
             _monitorTimer?.Dispose();
             _monitorTimer = null;
+            StopSessionWatchdog();
             
             if (_currentSession != null)
             {

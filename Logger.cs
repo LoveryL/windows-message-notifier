@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
+
 namespace Notifier
 {
     /// <summary>
@@ -87,7 +88,11 @@ namespace Notifier
                 }
 
                 _pending.Enqueue(line);
-                _flushTimer ??= new System.Threading.Timer(_ => Flush(), null, FlushIntervalMs, FlushIntervalMs);
+
+                // 兜底 flush 用"单次"定时器：有日志就续 1 秒，空闲时不再每秒空转唤醒一次。
+                // 常驻托盘程序 99% 的时间是空闲的，周期定时器纯属浪费。
+                _flushTimer ??= new System.Threading.Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
+                _flushTimer.Change(FlushIntervalMs, Timeout.Infinite);
 
                 needSchedule = !_flushScheduled;
                 if (needSchedule)
@@ -190,18 +195,8 @@ namespace Notifier
             string dir;
             try
             {
-                // 打包态（AppX/MSIX）走 WinRT 专属目录
-                if (IsPackaged())
-                {
-                    dir = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
-                }
-                else
-                {
-                    // 未打包：%LocalAppData%\Notifier
-                    dir = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                        "Notifier");
-                }
+                // 打包态（MSIX）与未打包统一由 AppEnvironment 决定，避免两处各写一套
+                dir = AppEnvironment.DataFolder;
             }
             catch
             {
@@ -212,33 +207,5 @@ namespace Notifier
             try { Directory.CreateDirectory(dir); } catch { }
             return Path.Combine(dir, "app.log");
         }
-
-        private static int _packaged = -1; // -1 未探测，0 否，1 是
-
-        private static bool IsPackaged()
-        {
-            // GetCurrentPackageFullName 涉及两次 kernel32 调用，结果不会变，缓存起来
-            var cached = Volatile.Read(ref _packaged);
-            if (cached >= 0) return cached == 1;
-
-            var result = 0;
-            try
-            {
-                uint len = 0;
-                GetCurrentPackageFullName(ref len, null);
-                var sb = new StringBuilder((int)len);
-                result = GetCurrentPackageFullName(ref len, sb) == 0 ? 1 : 0;
-            }
-            catch
-            {
-                result = 0;
-            }
-
-            Volatile.Write(ref _packaged, result);
-            return result == 1;
-        }
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern int GetCurrentPackageFullName(ref uint packageFullNameLength, StringBuilder? packageFullName);
     }
 }

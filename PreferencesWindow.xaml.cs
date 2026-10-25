@@ -27,6 +27,16 @@ public partial class PreferencesWindow : Window
         if (CloseButton != null)
             CloseButton.Click += (_, _) => Close();
 
+        // 复用而非销毁：设置项有几十个，重建一次面板要重新创建全部控件，
+        // 关掉再开是很常见的操作，这里只隐藏（退出时由 App.IsExiting 放行真正关闭）。
+        this.Closing += (_, e) =>
+        {
+            if (App.IsExiting) return;
+            e.Cancel = true;
+            Hide();
+            try { App.setting?.SaveNow(); } catch { }
+        };
+
         this.Closed += (_, __) =>
         {
             if (ReferenceEquals(_current, this)) _current = null;
@@ -61,6 +71,10 @@ public partial class PreferencesWindow : Window
                     _current.Show();
                     return;
                 }
+
+                // 之前只是隐藏：直接唤醒，不再重建面板
+                if (!_current.IsVisible)
+                    _current.Show();
 
                 if (_current.WindowState == WindowState.Minimized)
                     _current.WindowState = WindowState.Normal;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -118,10 +118,48 @@ namespace Notifier
             return _hwnd;
         }
 
+        // Avalonia 官方取句柄的 API（TopLevel.TryGetPlatformHandle）。
+        // 用反射调用而不是直接调用：既能拿到 O(1) 的句柄，又不会因为不同 Avalonia 版本
+        // 的方法签名差异而编译失败；拿不到时再退回下面的反射搜索。
+        private static System.Reflection.MethodInfo? _platformHandleMethod;
+        private static bool _platformHandleMethodResolved;
+
+        private IntPtr TryGetPlatformHandleFast()
+        {
+            try
+            {
+                if (!_platformHandleMethodResolved)
+                {
+                    _platformHandleMethodResolved = true;
+                    _platformHandleMethod = typeof(Window).GetMethod(
+                        "TryGetPlatformHandle",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                }
+
+                var method = _platformHandleMethod;
+                if (method == null) return IntPtr.Zero;
+
+                var platformHandle = method.Invoke(this, null);
+                if (platformHandle == null) return IntPtr.Zero;
+
+                var handleProp = platformHandle.GetType().GetProperty("Handle");
+                var value = handleProp?.GetValue(platformHandle);
+                return value is IntPtr ip ? ip : IntPtr.Zero;
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
+
         private IntPtr ResolveWindowHandle()
         {
             try
             {
+                // 首选官方 API（一次调用），反射 BFS 只作为兜底
+                var fast = TryGetPlatformHandleFast();
+                if (fast != IntPtr.Zero) return fast;
+
                 var pi = this.GetType().GetProperty("PlatformImpl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
                 var platformImpl = pi?.GetValue(this);
                 if (platformImpl == null) return IntPtr.Zero;
@@ -267,16 +305,36 @@ namespace Notifier
             catch { return IntPtr.Zero; }
         }
 
+        /// <summary>
+        /// 显示窗口（不抢焦点、置顶）。
+        ///
+        /// 必须先走 Avalonia 的 Show()，再动 Win32：
+        /// 只对 hwnd 调 ShowWindow 能把 Win32 窗口显示出来，但 Avalonia 这一侧的
+        /// 窗口状态/合成器表面并没有初始化 —— 表现就是"窗口句柄存在、进程正常、
+        /// 日志无异常，但屏幕上就是没有东西"。
+        /// 旧实现只在拿不到 hwnd 时才 Show()，等于把初始化交给了运气。
+        /// Show() 本身是幂等的（已显示时无操作），每次都调没有副作用。
+        /// 窗口在 XAML 里设了 ShowActivated="False"，所以 Show() 不会抢焦点。
+        /// </summary>
         private void ShowNoActivateTopmost()
         {
             try
             {
+                // 1) 先让 Avalonia 完成窗口初始化 / 首次呈现
+                if (!IsVisible) Show();
+
+                // 2) 再用 Win32 保证"显示且不激活、且置顶"
                 var hwnd = GetWindowHandle();
-                if (hwnd == IntPtr.Zero) { Show(); return; }
+                if (hwnd == IntPtr.Zero) return;
+
                 ShowWindow(hwnd, SW_SHOWNOACTIVATE);
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
-            catch { Show(); }
+            catch (Exception ex)
+            {
+                Logger.Warn($"显示弹窗失败，回退到 Show(): {ex.Message}");
+                try { Show(); } catch { }
+            }
         }
 
         private void RevokeTopmost()
@@ -387,9 +445,10 @@ private void EnableMouseTransparency()
                     tb.TextWrapping = expand ? TextWrapping.Wrap : TextWrapping.NoWrap;
                 }
 
+                // 不再同步强制布局：UpdateLayout() 会立刻跑一遍完整布局树，
+                // 按 Ctrl+Shift 展开时每次都要等它，手感明显变钝。
+                // 改完尺寸交给 Avalonia 在下一帧统一测量即可。
                 this.Width = _windowWidth;
-                this.InvalidateMeasure();
-                this.UpdateLayout();
 
                 if (expand)
                 {
@@ -409,9 +468,6 @@ private void EnableMouseTransparency()
 
                             var targetHeight = Math.Max(_windowHeight, itemHeight + 36);
                             this.Height = Math.Min(_maxExpandedHeight, targetHeight);
-
-                            this.InvalidateMeasure();
-                            this.UpdateLayout();
                         }
                         catch { }
                     });
@@ -419,8 +475,6 @@ private void EnableMouseTransparency()
                 else
                 {
                     this.Height = _windowHeight;
-                    this.InvalidateMeasure();
-                    this.UpdateLayout();
                 }
             }
             catch { }
@@ -469,7 +523,6 @@ private void EnableMouseTransparency()
         {
             InitializeComponent();
             MessageList.ItemsSource = _messageGroups;
-            SetupRootTransform();
 
             ApplySettings();
 
@@ -500,10 +553,6 @@ private void EnableMouseTransparency()
         private double _windowWidth = 375;
         private double _windowHeight = 65;
         private double _maxExpandedHeight = 420;
-        private double _enterSlideX = 28;
-        private double _enterScaleFrom = 0.94;
-        private double _exitSlideX = 14;
-        private double _exitScaleTo = 0.97;
         private int _enterDurationMs = 260;
         private int _exitDurationMs = 170;
         private int _borderAnimMs = 200;
@@ -522,10 +571,7 @@ private void EnableMouseTransparency()
             _windowHeight = Math.Max(40, s.PopupHeight);
             _maxExpandedHeight = Math.Max(_windowHeight, s.PopupMaxHeight);
 
-            _enterSlideX = s.EnterSlideX;
-            _enterScaleFrom = s.EnterScaleFrom;
-            _exitSlideX = s.ExitSlideX;
-            _exitScaleTo = s.ExitScaleTo;
+            // 进出场是纯淡入淡出，不再有位移/缩放（滑入相关的设置项已停用）
             _enterDurationMs = Math.Max(0, s.PopupEnterMs);
             _exitDurationMs = Math.Max(0, s.PopupExitMs);
             _borderAnimMs = Math.Max(0, s.BorderAnimMs);
@@ -648,36 +694,32 @@ private void EnableMouseTransparency()
         }
 
         // ===== 弹窗进出场动画参数 =====
-        // 弹窗从屏幕右侧滑入：位移 + 轻微缩放 + 淡入，末段带一点过冲回弹（Q 弹）。
-
-        // 动画全程复用同一组变换对象与画笔，避免每帧产生垃圾
-        private readonly TranslateTransform _rootTranslate = new();
-        private readonly ScaleTransform _rootScale = new() { ScaleX = 1, ScaleY = 1 };
+        // 进出场是**纯淡入淡出**（只改 Opacity），不再有位移与缩放。
+        //
+        // 为什么去掉滑入/缩放：
+        // 1) RenderTransform 每帧都要重算变换矩阵并重新合成整个弹窗表面，
+        //    透明窗口 + 阴影的成本比只改透明度高得多；
+        // 2) 位移/缩放会让弹窗"动起来"的观感依赖动画是否完整跑完 ——
+        //    一旦被别的事打断，内容会停在偏移/缩小的中间态，而纯淡入淡出最坏也只是半透明；
+        // 3) 少一个变换对象就少一处状态，不必再担心起点被上一段动画污染。
+        //
+        // 只保留一个画笔对象，避免每帧产生垃圾。
         private SolidColorBrush? _borderAnimBrush;
 
-        /// <summary>初始化 RootGrid 的变换（位移 + 缩放，以右侧中点为锚点）。</summary>
-        private void SetupRootTransform()
+        /// <summary>
+        /// 动画期间改用小半径阴影。
+        /// 透明窗口的 BoxShadow 模糊每帧都要重新合成，24 的模糊半径在滑入/滑出的十几帧里
+        /// 是纯 GPU 浪费（视觉上几乎看不出差别），静止时再换回完整阴影。
+        /// </summary>
+        private void SetPopupShadow(bool cheap)
         {
             try
             {
-                RootGrid.RenderTransform = new TransformGroup
-                {
-                    Children = { _rootTranslate, _rootScale }
-                };
-                // 窗口贴在右上角，缩放/位移以右中点为原点更符合直觉
-                RootGrid.RenderTransformOrigin = new RelativePoint(1, 0.5, RelativeUnit.Relative);
-            }
-            catch { }
-        }
+                var s = App.setting;
+                var outer = this.FindControl<Border>("OuterBorder");
+                if (s == null || outer == null) return;
 
-        /// <summary>把变换恢复到静止状态，避免下次出场时起点被上一段动画污染。</summary>
-        private void ResetRootTransform()
-        {
-            try
-            {
-                _rootTranslate.X = 0;
-                _rootScale.ScaleX = 1;
-                _rootScale.ScaleY = 1;
+                outer.BoxShadow = ThemeManager.BuildPopupShadow(s.PopupShadowHex, cheap ? 6 : 24, 0);
             }
             catch { }
         }
@@ -686,54 +728,48 @@ private void EnableMouseTransparency()
         {
             if (_isClosingAnimation) return;
             _isClosingAnimation = true;
+
+            bool cheap = _exitDurationMs > 0;
+            if (cheap) SetPopupShadow(true);
             try
             {
                 double fromOpacity = RootGrid.Opacity;
-                double fromX = _rootTranslate.X;
 
                 await UiTween.RunAsync(_exitDurationMs, t =>
                 {
-                    // 退场用 ease-in：起步慢、收尾快，视觉上"被收走"
-                    double e = Easing.InCubic(t);
+                    // 纯淡出：ease-in，起步慢、收尾快，视觉上"被收走"
                     RootGrid.Opacity = fromOpacity * (1 - Easing.InQuad(t));
-                    _rootTranslate.X = fromX + (_exitSlideX - fromX) * e;
-                    double s = 1 - (1 - _exitScaleTo) * e;
-                    _rootScale.ScaleX = s;
-                    _rootScale.ScaleY = s;
                 });
             }
             catch { }
             finally
             {
                 _isClosingAnimation = false;
+                if (cheap) SetPopupShadow(false);
             }
         }
 
-        private Task FadeInAsync()
+        private async Task FadeInAsync()
         {
+            bool cheap = _enterDurationMs > 0;
+            if (cheap) SetPopupShadow(true);
             try
             {
                 // 入场动画失败也不能影响消息展示，错误在这里收敛
-                return UiTween.RunAsync(_enterDurationMs, t =>
+                await UiTween.RunAsync(_enterDurationMs, t =>
                 {
-                    // 位移与缩放用 OutBack：末段轻微越过终点再回弹 = Q 弹
-                    double b = Easing.OutBack(t);
-                    // 透明度单独走更快的一条曲线，避免"先看清了还在动"
+                    // 纯淡入：透明度走略快于线性的曲线，前段就基本清晰
                     double o = Easing.OutQuad(t / 0.65);
                     RootGrid.Opacity = o > 1 ? 1 : o;
-
-                    _rootTranslate.X = _enterSlideX * (1 - b);
-
-                    double s = _enterScaleFrom + (1 - _enterScaleFrom) * b;
-                    _rootScale.ScaleX = s;
-                    _rootScale.ScaleY = s;
                 });
             }
             catch
             {
                 RootGrid.Opacity = 1;
-                ResetRootTransform();
-                return Task.CompletedTask;
+            }
+            finally
+            {
+                if (cheap) SetPopupShadow(false);
             }
         }
 
@@ -756,8 +792,6 @@ private void EnableMouseTransparency()
                 RootGrid.Opacity = 0;
                 Hide();
                 RevokeTopmost();
-                // 复位变换，让下一次弹出从干净的起点开始
-                ResetRootTransform();
             }
             if (clearQueue)
             {
@@ -809,32 +843,85 @@ private void EnableMouseTransparency()
             StartDisplayTimer();
         }
 
+        // 上一次"开始显示"的时间戳，用于卡死自检：
+        // _isDisplaying 为 true 却迟迟看不到窗口时，说明中间某一步卡住了，
+        // 此时要强制复位状态，否则后续所有消息都会被"正在显示中"挡住，一条都不再弹。
+        private long _displayStartedAt;
+
         private async void StartDisplaying()
         {
+            // 卡死自检：正在显示却长时间不可见 → 说明上一次流程中途夭折（无异常、无日志）。
+            // 这里强制复位，让本次消息能正常弹出，避免"从此再也不显示"。
+            if (_isDisplaying && !_isClosingAnimation && !IsVisible &&
+                Environment.TickCount64 - _displayStartedAt > 3000)
+            {
+                Logger.Warn("检测到显示状态卡死（标记显示中但窗口不可见），已强制复位");
+                _isDisplaying = false;
+                _isClosingAnimation = false;
+            }
+
             if (_isClosed || _isClosingAnimation) return;
             if (_messageQueue.Count == 0) return;
 
             StopDisplayTimer();
             _isDisplaying = true;
+            _displayStartedAt = Environment.TickCount64;
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            try
             {
-                PositionWindow();
-                ShowCurrentQueueHeadImmediate();
-                // 先把内容复位到"入场起点"再显示窗口，否则第一帧会闪一下最终状态
-                ResetRootTransform();
-                RootGrid.Opacity = 0;
-            });
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    PositionWindow();
+                    ShowCurrentQueueHeadImmediate();
+                    // 先把透明度归零再显示窗口，否则第一帧会闪一下最终状态
+                    RootGrid.Opacity = 0;
+                });
 
-            ShowNoActivateTopmost();
-            EnableMouseTransparency();
-            this.Focusable = false;
-            try { if (this.WindowState == WindowState.Minimized) this.WindowState = WindowState.Normal; } catch { }
-            try { if (_ctrlPollTimer != null && !_ctrlPollTimer.IsEnabled) _ctrlPollTimer.Start(); } catch { }
+                ShowNoActivateTopmost();
+                EnableMouseTransparency();
+                this.Focusable = false;
+                try { if (this.WindowState == WindowState.Minimized) this.WindowState = WindowState.Normal; } catch { }
+                try { if (_ctrlPollTimer != null && !_ctrlPollTimer.IsEnabled) _ctrlPollTimer.Start(); } catch { }
 
-            // 滑入 + 缩放 + 淡入（结束再开始计时，用户看完整条才开始倒计时）
-            await FadeInAsync();
-            StartDisplayTimer();
+                // 窗口已经显示出来了：无论入场动画成败，内容都必须可见。
+                // 这里给动画加一道超时（时长 + 800ms），超时就直接落到终态，
+                // 杜绝"动画没跑完 → Opacity 停在 0 → 窗口存在但看不见"。
+                var fadeIn = FadeInAsync();
+                var guard = Task.Delay(_enterDurationMs + 800);
+                if (await Task.WhenAny(fadeIn, guard) == guard)
+                {
+                    Logger.Warn($"入场动画超时（{_enterDurationMs}ms），强制落到终态以保证弹窗可见");
+                    ForceVisibleState();
+                }
+
+                // 双保险：动画结束后若仍不可见，直接拉到终态
+                if (RootGrid.Opacity < 0.99) ForceVisibleState();
+            }
+            catch (Exception ex)
+            {
+                // 以前这里是 async void + 无 catch：任何异常都被吞掉，
+                // 表现为"不显示，但进程正常、日志干净"，极难排查。
+                Logger.Error("显示弹窗过程中异常", ex);
+                try { ForceVisibleState(); } catch { }
+            }
+            finally
+            {
+                StartDisplayTimer();
+            }
+        }
+
+        /// <summary>把弹窗强制拉到"完全可见"的静止终态。</summary>
+        private void ForceVisibleState()
+        {
+            try
+            {
+                RootGrid.Opacity = 1;
+                if (!IsVisible) Show();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"强制显示弹窗失败: {ex.Message}");
+            }
         }
 
         private void ShowCurrentQueueHeadImmediate()
@@ -1092,13 +1179,38 @@ private void EnableMouseTransparency()
             catch { }
         }
 
+        // Screens.Primary 内部是一次 Win32 显示器枚举，而弹窗每次显示都要定位一次。
+        // 结果缓存 5 秒：换显示器/改分辨率后自动过期，正常情况省掉这次系统调用。
+        // 这里缓存的是工作区矩形而不是 Screen 对象：
+        // 项目开了 UseWindowsForms，System.Windows.Forms 被隐式全局引入，
+        // 直接写 Screen 会与 Avalonia 的 Screen 撞名（CS0104），
+        // 而 Screen 在 Avalonia 各版本里还换过命名空间（Controls / Platform），
+        // 写全限定名同样不稳。缓存 PixelRect 就绕开了整个类型。
+        // 缓存字段放在实例上：Screens 是 WindowBase 的实例属性（不是静态的），
+        // 所以查询方法只能是实例方法。
+        private PixelRect? _cachedWorkArea;
+        private long _screenCacheStamp;
+        private const int ScreenCacheTtlMs = 5000;
+
+        private PixelRect? PrimaryWorkAreaCached()
+        {
+            var now = Environment.TickCount64;
+            if (_cachedWorkArea != null && now - _screenCacheStamp < ScreenCacheTtlMs)
+                return _cachedWorkArea;
+
+            var screen = this.Screens.Primary; // var 推断，不出现 Screen 类型名 —— 避免与 WinForms 的同名类型冲突
+            _cachedWorkArea = screen?.WorkingArea;
+            _screenCacheStamp = now;
+            return _cachedWorkArea;
+        }
+
         private void PositionWindow()
         {
-            var screen = Screens.Primary;
-            if (screen == null) return;
+            var workArea = PrimaryWorkAreaCached();
+            if (workArea == null) return;
 
-            var workArea = screen.WorkingArea;
-            var left = App.setting.is_middle ? (workArea.Width - Width) / 2.0 : App.setting.window_left;
+            var area = workArea.Value;
+            var left = App.setting.is_middle ? (area.Width - Width) / 2.0 : App.setting.window_left;
             Position = new PixelPoint((int)Math.Round(left), (int)Math.Round(App.setting.window_top));
         }
     }
